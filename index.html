@@ -56,6 +56,10 @@
     .floor-input:focus { outline: none; border-color: var(--accent); }
     .floor-input.invalid { border-color: var(--red); }
     .settings-hint { font-size: .78rem; color: var(--muted); margin-left: auto; }
+    @media (max-width: 560px) {
+      .settings-row { flex-wrap: wrap; }
+      .settings-hint { margin-left: 0; flex-basis: 100%; order: 3; }
+    }
 
     /* Upload zone */
     .upload-zone {
