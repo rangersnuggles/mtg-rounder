@@ -324,7 +324,7 @@ function buildProcessed(floor) {
     const condition = conditionFromManabox(row['Condition'], row['Foil']);
 
     const tcgRow = {
-      'TCGplayer Id': priceData?.tcgplayer_id || '',
+      'TCGplayer Id': '',
       'Product Line': 'Magic',
       'Set Name': row['Set name'] || '',
       'Product Name': row['Name'] || '',
@@ -501,9 +501,8 @@ async function fetchLivePrices() {
       const res  = await fetch(`https://api.scryfall.com/cards/${id}`);
       const data = await res.json();
       livePrices[id] = {
-        usd:         data.prices?.usd      ? parseFloat(data.prices.usd)      : null,
-        usd_foil:    data.prices?.usd_foil ? parseFloat(data.prices.usd_foil) : null,
-        tcgplayer_id: data.tcgplayer_id || null,
+        usd:      data.prices?.usd      ? parseFloat(data.prices.usd)      : null,
+        usd_foil: data.prices?.usd_foil ? parseFloat(data.prices.usd_foil) : null,
       };
     } catch (_) { /* silently skip, live stays null */ }
     done++;
