@@ -19,6 +19,7 @@
       --accent2:  #8b5cf6;
       --green:    #22c55e;
       --yellow:   #eab308;
+      --red:      #ef4444;
     }
 
     body {
@@ -29,22 +30,31 @@
       padding: 2rem 1rem;
     }
 
-    .container { max-width: 860px; margin: 0 auto; }
+    .container { max-width: 920px; margin: 0 auto; }
 
     /* Header */
     .header { text-align: center; margin-bottom: 2rem; }
     .header h1 { font-size: 1.75rem; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
     .header p { color: var(--subtle); margin-top: .4rem; font-size: .9rem; }
 
-    /* Tabs */
-    .tabs { display: flex; gap: .5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .35rem; margin-bottom: 1.75rem; }
-    .tab {
-      flex: 1; padding: .6rem 1rem; border: none; border-radius: 7px; cursor: pointer;
-      font-size: .875rem; font-weight: 500; transition: all .2s;
-      background: transparent; color: var(--subtle);
+    /* Settings row */
+    .settings-row {
+      display: flex; align-items: center; gap: .75rem;
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: 10px; padding: .85rem 1.1rem; margin-bottom: 1rem;
     }
-    .tab.active { background: var(--accent); color: #fff; }
-    .tab:not(.active):hover { color: var(--text); background: var(--border); }
+    .settings-row label { font-size: .875rem; color: var(--subtle); white-space: nowrap; }
+    .settings-row .input-wrap { display: flex; align-items: center; gap: .4rem; }
+    .settings-row .prefix { color: var(--subtle); font-size: .95rem; }
+    .floor-input {
+      width: 72px; padding: .4rem .6rem;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+      color: var(--text); font-size: .95rem; text-align: center;
+      transition: border-color .2s;
+    }
+    .floor-input:focus { outline: none; border-color: var(--accent); }
+    .floor-input.invalid { border-color: var(--red); }
+    .settings-hint { font-size: .78rem; color: var(--muted); margin-left: auto; }
 
     /* Upload zone */
     .upload-zone {
@@ -52,7 +62,7 @@
       text-align: center; cursor: pointer; transition: all .2s;
       background: var(--surface);
     }
-    .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: #1e293b; }
+    .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); }
     .upload-zone svg { width: 40px; height: 40px; color: var(--muted); margin-bottom: .75rem; }
     .upload-zone p { color: var(--subtle); font-size: .9rem; }
     .upload-zone strong { color: var(--text); }
@@ -64,7 +74,36 @@
     .upload-btn:hover { background: var(--accent2); }
     input[type="file"] { display: none; }
 
-    /* Cards */
+    /* Action bar (fetch + basis toggle) */
+    .action-bar {
+      display: flex; align-items: center; gap: .75rem; flex-wrap: wrap;
+      margin-top: 1.25rem;
+    }
+    .fetch-btn {
+      padding: .55rem 1.25rem; background: var(--surface);
+      border: 1px solid var(--accent); color: var(--accent);
+      border-radius: 8px; font-size: .875rem; font-weight: 500;
+      cursor: pointer; transition: all .2s; white-space: nowrap;
+    }
+    .fetch-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+    .fetch-btn:disabled { opacity: .45; cursor: default; }
+
+    .basis-toggle { display: flex; gap: .35rem; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; padding: .25rem; }
+    .basis-btn {
+      padding: .38rem .85rem; border: none; border-radius: 6px; cursor: pointer;
+      font-size: .8rem; font-weight: 500; transition: all .15s;
+      background: transparent; color: var(--subtle);
+    }
+    .basis-btn.active { background: var(--accent); color: #fff; }
+    .basis-btn:not(.active):hover { color: var(--text); }
+
+    /* Progress */
+    .progress-wrap { margin-top: .85rem; }
+    .progress-label { font-size: .82rem; color: var(--subtle); margin-bottom: .4rem; }
+    .progress-bar-bg { background: var(--border); border-radius: 4px; height: 6px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 4px; transition: width .2s; }
+
+    /* Stat cards */
     .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin-top: 1.5rem; }
     @media (max-width: 600px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
     .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; }
@@ -87,12 +126,18 @@
     .preview-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-top: .75rem; overflow-x: auto; }
     .preview-card h3 { font-size: .8rem; color: var(--subtle); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 1rem; }
     table { width: 100%; border-collapse: collapse; font-size: .83rem; }
-    th { color: var(--subtle); font-weight: 500; text-align: left; padding: .4rem .75rem; border-bottom: 1px solid var(--border); }
+    th { color: var(--subtle); font-weight: 500; text-align: left; padding: .4rem .75rem; border-bottom: 1px solid var(--border); white-space: nowrap; }
     td { padding: .5rem .75rem; border-bottom: 1px solid #1e293b; }
     tr:last-child td { border-bottom: none; }
-    .price-before { color: var(--muted); text-decoration: line-through; }
-    .price-after { color: var(--green); font-weight: 600; }
-    .arrow { color: var(--subtle); }
+    .price-col { text-align: right; font-variant-numeric: tabular-nums; }
+    .price-dim { color: var(--muted); }
+    .price-live { color: var(--subtle); }
+    .price-basis { color: var(--green); font-weight: 600; }
+    .price-rounded { color: var(--accent); font-weight: 700; }
+    .badge-purchase { font-size: .7rem; color: var(--muted); background: var(--border); border-radius: 3px; padding: 1px 5px; }
+    .badge-live { font-size: .7rem; color: #6ee7b7; background: #064e3b; border-radius: 3px; padding: 1px 5px; }
+    .badge-higher { font-size: .7rem; color: #fde68a; background: #78350f; border-radius: 3px; padding: 1px 5px; }
+    .no-live { color: var(--muted); font-style: italic; }
 
     /* Download */
     .download-btn {
@@ -122,147 +167,137 @@
 <div class="container">
   <div class="header">
     <h1>TCG Price Rounder</h1>
-    <p>Round marketplace prices up to the nearest $0.25 &mdash; minimum $0.50</p>
+    <p>Convert ManaBox exports to TCGPlayer format &mdash; rounded up to the nearest $0.25</p>
   </div>
 
-  <div class="tabs">
-    <button class="tab active" id="tab-tcg" onclick="switchTab('tcg')">TCGPlayer Rounder</button>
-    <button class="tab" id="tab-mana" onclick="switchTab('mana')">ManaBox Converter</button>
-  </div>
-
-  <!-- TCGPlayer Tab -->
-  <div id="panel-tcg">
-    <div class="upload-zone" id="zone-tcg"
-      ondragover="handleDragOver(event,'zone-tcg')"
-      ondragleave="handleDragLeave('zone-tcg')"
-      ondrop="handleDrop(event,'tcg')"
-      onclick="document.getElementById('file-tcg').click()">
-      <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
-      <p><strong>Drop your TCGPlayer CSV here</strong></p>
-      <p>or click to browse</p>
-      <button class="upload-btn" onclick="event.stopPropagation(); document.getElementById('file-tcg').click()">Choose File</button>
+  <div class="settings-row">
+    <label for="floor-input">Minimum Price Floor</label>
+    <div class="input-wrap">
+      <span class="prefix">$</span>
+      <input type="text" id="floor-input" class="floor-input" value="0.50"
+        onchange="onFloorChange()" oninput="onFloorChange()" />
     </div>
-    <input type="file" id="file-tcg" accept=".csv" onchange="handleFile(event,'tcg')" />
-    <div id="error-tcg" class="error-box hidden"></div>
-    <div id="results-tcg" class="hidden"></div>
+    <span class="settings-hint">Cards below this price will be set to this value</span>
   </div>
 
-  <!-- ManaBox Tab -->
-  <div id="panel-mana" class="hidden">
-    <div class="upload-zone" id="zone-mana"
-      ondragover="handleDragOver(event,'zone-mana')"
-      ondragleave="handleDragLeave('zone-mana')"
-      ondrop="handleDrop(event,'mana')"
-      onclick="document.getElementById('file-mana').click()">
-      <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
-      <p><strong>Drop your ManaBox CSV here</strong></p>
-      <p>Converts to TCGPlayer format &amp; rounds prices in one step</p>
-      <button class="upload-btn" onclick="event.stopPropagation(); document.getElementById('file-mana').click()">Choose File</button>
-    </div>
-    <input type="file" id="file-mana" accept=".csv" onchange="handleFile(event,'mana')" />
-    <div id="error-mana" class="error-box hidden"></div>
-    <div id="results-mana" class="hidden"></div>
+  <div class="upload-zone" id="upload-zone"
+    ondragover="handleDragOver(event)"
+    ondragleave="handleDragLeave()"
+    ondrop="handleDrop(event)"
+    onclick="document.getElementById('file-input').click()">
+    <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/>
+    </svg>
+    <p><strong>Drop your ManaBox CSV here</strong></p>
+    <p>Converts to TCGPlayer format &amp; rounds prices in one step</p>
+    <button class="upload-btn" onclick="event.stopPropagation(); document.getElementById('file-input').click()">Choose File</button>
   </div>
+  <input type="file" id="file-input" accept=".csv" onchange="handleFile(event)" />
+  <div id="error-box" class="error-box hidden"></div>
+  <div id="results"></div>
 </div>
 
 <script>
 // ── State ──────────────────────────────────────────────────────────────────
-let processedData = { tcg: null, mana: null };
+let currentRows   = null;   // raw ManaBox rows
+let currentFile   = null;   // filename
+let livePrices    = {};     // { scryfallId: { usd, usd_foil } }
+let fetchDone     = false;
+let basisMode     = 'higher'; // 'purchase' | 'live' | 'higher'
+let isFetching    = false;
 
-// ── Tab switching ──────────────────────────────────────────────────────────
-function switchTab(tab) {
-  ['tcg','mana'].forEach(t => {
-    document.getElementById('panel-' + t).classList.toggle('hidden', t !== tab);
-    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
-  });
+// ── Floor ──────────────────────────────────────────────────────────────────
+function getFloor() {
+  const val = parseFloat(document.getElementById('floor-input').value);
+  return isNaN(val) || val < 0 ? null : val;
 }
-
-// ── Drag & drop ────────────────────────────────────────────────────────────
-function handleDragOver(e, zoneId) {
-  e.preventDefault();
-  document.getElementById(zoneId).classList.add('drag-over');
-}
-function handleDragLeave(zoneId) {
-  document.getElementById(zoneId).classList.remove('drag-over');
-}
-function handleDrop(e, mode) {
-  e.preventDefault();
-  document.getElementById('zone-' + mode).classList.remove('drag-over');
-  const file = e.dataTransfer.files[0];
-  if (file) processCSV(file, mode);
-}
-function handleFile(e, mode) {
-  const file = e.target.files[0];
-  if (file) processCSV(file, mode);
+function onFloorChange() {
+  const input = document.getElementById('floor-input');
+  const floor = getFloor();
+  input.classList.toggle('invalid', floor === null);
+  if (floor !== null && currentRows) renderResults();
 }
 
-// ── Core logic ─────────────────────────────────────────────────────────────
-function roundUpToQuarter(price) {
-  if (price < 0.50) return 0.50;
+// ── Rounding & basis ───────────────────────────────────────────────────────
+function roundUp(price, floor) {
+  if (price < floor) return floor;
   return Math.ceil(price * 4) / 4;
 }
-
-function conditionFromManabox(condition, foil) {
-  const map = {
-    near_mint: 'Near Mint',
-    lightly_played: 'Lightly Played',
-    moderately_played: 'Moderately Played',
-    heavily_played: 'Heavily Played',
-    damaged: 'Damaged',
-  };
-  const base = map[condition] || condition;
-  return foil === 'foil' ? base + ' Foil' : base;
+function getBasisPrice(purchase, live) {
+  if (basisMode === 'purchase' || live === null) return purchase;
+  if (basisMode === 'live') return live ?? purchase;
+  return Math.max(purchase, live ?? purchase);
 }
 
-function rarityFromManabox(r) {
-  return { common: 'C', uncommon: 'U', rare: 'R', mythic: 'M' }[r] || r;
+// ── Drag & drop / file ─────────────────────────────────────────────────────
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.add('drag-over');
+}
+function handleDragLeave() {
+  document.getElementById('upload-zone').classList.remove('drag-over');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('upload-zone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processCSV(file);
+}
+function handleFile(e) {
+  const file = e.target.files[0];
+  if (file) processCSV(file);
 }
 
-function processCSV(file, mode) {
-  const errEl = document.getElementById('error-' + mode);
-  errEl.classList.add('hidden');
-
+// ── CSV processing ─────────────────────────────────────────────────────────
+function processCSV(file) {
+  showError('');
   Papa.parse(file, {
     header: true,
     skipEmptyLines: true,
     complete(result) {
       try {
-        if (mode === 'tcg') {
-          processTCG(result.data, file.name);
-        } else {
-          processManabox(result.data, file.name);
-        }
-      } catch (err) {
-        showError(mode, err.message);
-      }
+        if (!result.data.length) throw new Error('CSV appears to be empty.');
+        if (!('Purchase price' in result.data[0]))
+          throw new Error('Missing column "Purchase price" — make sure this is a ManaBox export.');
+        currentRows = result.data;
+        currentFile = file.name;
+        livePrices  = {};
+        fetchDone   = false;
+        basisMode   = 'higher';
+        renderResults();
+      } catch (err) { showError(err.message); }
     },
-    error(err) { showError(mode, err.message); }
+    error(err) { showError(err.message); }
   });
 }
 
-function processTCG(rows, filename) {
-  if (!rows.length) throw new Error('CSV appears to be empty.');
-  if (!('TCG Marketplace Price' in rows[0])) throw new Error('Missing required column: "TCG Marketplace Price". Make sure this is a TCGPlayer export.');
-
-  const processed = rows.map(row => {
-    const raw = parseFloat(row['TCG Marketplace Price']);
-    const rounded = isNaN(raw) ? 0 : roundUpToQuarter(raw);
-    const qty = parseInt(row['Add to Quantity']) || 1;
-    return { row, raw: isNaN(raw) ? 0 : raw, rounded, qty };
-  });
-
-  processedData.tcg = { processed, filename };
-  renderResults('tcg', processed, filename);
+// ── Helpers ────────────────────────────────────────────────────────────────
+function conditionFromManabox(condition, foil) {
+  const map = {
+    near_mint: 'Near Mint', lightly_played: 'Lightly Played',
+    moderately_played: 'Moderately Played', heavily_played: 'Heavily Played', damaged: 'Damaged',
+  };
+  const base = map[condition] || condition;
+  return foil === 'foil' ? base + ' Foil' : base;
 }
+function rarityFromManabox(r) {
+  return { common: 'C', uncommon: 'U', rare: 'R', mythic: 'M' }[r] || r;
+}
+function isFoilCondition(foil) { return foil === 'foil'; }
+function fmt(n) { return n === null ? '—' : '$' + n.toFixed(2); }
 
-function processManabox(rows, filename) {
-  if (!rows.length) throw new Error('CSV appears to be empty.');
-  if (!('Purchase price' in rows[0])) throw new Error('Missing required column: "Purchase price". Make sure this is a ManaBox export.');
-
-  const processed = rows.map(row => {
-    const raw = parseFloat(row['Purchase price']);
-    const rounded = isNaN(raw) ? 0 : roundUpToQuarter(raw);
+// ── Build processed rows (pure, no side effects) ───────────────────────────
+function buildProcessed(floor) {
+  return currentRows.map(row => {
+    const purchase = parseFloat(row['Purchase price']) || 0;
+    const scryfallId = row['Scryfall ID'] || '';
+    const foil = row['Foil'] === 'foil';
+    const priceData = livePrices[scryfallId] || null;
+    const live = priceData ? (foil ? priceData.usd_foil : priceData.usd) : null;
+    const basis = getBasisPrice(purchase, live);
+    const rounded = roundUp(basis, floor);
     const qty = parseInt(row['Quantity']) || 1;
+    const condition = conditionFromManabox(row['Condition'], row['Foil']);
 
     const tcgRow = {
       'TCGplayer Id': '',
@@ -272,7 +307,7 @@ function processManabox(rows, filename) {
       'Title': '',
       'Number': row['Collector number'] || '',
       'Rarity': rarityFromManabox(row['Rarity']),
-      'Condition': conditionFromManabox(row['Condition'], row['Foil']),
+      'Condition': condition,
       'TCG Market Price': '',
       'TCG Direct Low': '',
       'TCG Low Price With Shipping': '',
@@ -282,57 +317,80 @@ function processManabox(rows, filename) {
       'TCG Marketplace Price': rounded.toFixed(2),
       'Photo URL': ''
     };
-    return { row: tcgRow, raw: isNaN(raw) ? 0 : raw, rounded, qty, name: row['Name'], condition: conditionFromManabox(row['Condition'], row['Foil']) };
-  });
 
-  processedData.mana = { processed, filename };
-  renderResults('mana', processed, filename);
+    return { tcgRow, purchase, live, basis, rounded, qty, condition,
+             name: row['Name'] || '—', scryfallId };
+  });
 }
 
 // ── Render ─────────────────────────────────────────────────────────────────
-function renderResults(mode, processed, filename) {
-  const totalItems = processed.reduce((s, p) => s + p.qty, 0);
-  const originalValue = processed.reduce((s, p) => s + p.raw * p.qty, 0);
-  const roundedValue = processed.reduce((s, p) => s + p.rounded * p.qty, 0);
-  const increase = roundedValue - originalValue;
+function renderResults() {
+  const floor = getFloor();
+  if (!floor || !currentRows) return;
 
-  // Price distribution
+  const processed = buildProcessed(floor);
+  window._processedForDownload = { processed, filename: currentFile };
+
+  const totalItems   = processed.reduce((s, p) => s + p.qty, 0);
+  const origValue    = processed.reduce((s, p) => s + p.purchase * p.qty, 0);
+  const roundedValue = processed.reduce((s, p) => s + p.rounded * p.qty, 0);
+  const increase     = roundedValue - origValue;
+
+  // Buckets
+  const fmtBucket = v => '$' + v.toFixed(2).replace(/\.00$/, '');
   const buckets = [
-    { label: '$0.50', check: r => r === 0.50, count: 0 },
-    { label: '$0.75 – $0.99', check: r => r >= 0.75 && r <= 0.99, count: 0 },
-    { label: '$1.00 – $4.99', check: r => r >= 1.00 && r <= 4.99, count: 0 },
-    { label: '$5.00 – $9.99', check: r => r >= 5.00 && r <= 9.99, count: 0 },
-    { label: '$10.00 – $19.99', check: r => r >= 10.00 && r <= 19.99, count: 0 },
-    { label: '$20.00+', check: r => r >= 20.00, count: 0 },
+    { label: fmtBucket(floor),    check: r => r === floor, count: 0 },
+    { label: '$0.75 – $0.99',     check: r => r > floor && r <= 0.99, count: 0 },
+    { label: '$1.00 – $4.99',     check: r => r >= 1.00 && r <= 4.99, count: 0 },
+    { label: '$5.00 – $9.99',     check: r => r >= 5.00 && r <= 9.99, count: 0 },
+    { label: '$10.00 – $19.99',   check: r => r >= 10.00 && r <= 19.99, count: 0 },
+    { label: '$20.00+',           check: r => r >= 20.00, count: 0 },
   ];
   processed.forEach(({ rounded, qty }) => {
     buckets.forEach(b => { if (b.check(rounded)) b.count += qty; });
   });
   const maxCount = Math.max(...buckets.map(b => b.count), 1);
 
-  // Preview rows (first 5)
-  const preview = processed.slice(0, 5);
+  const preview = processed.slice(0, 10);
+  const hasLive = fetchDone;
 
-  const container = document.getElementById('results-' + mode);
-  container.classList.remove('hidden');
+  // Basis label helper
+  function basisLabel(p) {
+    if (!hasLive || p.live === null) return '';
+    if (basisMode === 'purchase') return '<span class="badge-purchase">purchase</span>';
+    if (basisMode === 'live') return '<span class="badge-live">live</span>';
+    return p.live !== null && p.live >= p.purchase
+      ? '<span class="badge-live">live</span>'
+      : '<span class="badge-purchase">purchase</span>';
+  }
+
+  const container = document.getElementById('results');
   container.innerHTML = `
+    <div class="action-bar">
+      <button class="fetch-btn" id="fetch-btn" onclick="fetchLivePrices()" ${isFetching ? 'disabled' : ''}>
+        ${isFetching ? 'Fetching…' : fetchDone ? '↺ Refresh Live Prices' : '⚡ Fetch Live Prices'}
+      </button>
+      ${hasLive ? `
+        <div class="basis-toggle">
+          <button class="basis-btn ${basisMode==='purchase'?'active':''}" onclick="setBasis('purchase')">Purchase Price</button>
+          <button class="basis-btn ${basisMode==='live'?'active':''}" onclick="setBasis('live')">Live Price</button>
+          <button class="basis-btn ${basisMode==='higher'?'active':''}" onclick="setBasis('higher')">Higher of the Two</button>
+        </div>
+      ` : '<span style="font-size:.8rem;color:var(--muted)">Fetch live Scryfall prices to compare against purchase prices</span>'}
+    </div>
+
+    ${isFetching ? `
+      <div class="progress-wrap" id="progress-wrap">
+        <div class="progress-label" id="progress-label">Starting…</div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-bar" style="width:0%"></div></div>
+      </div>
+    ` : ''}
+
     <div class="stats-grid">
-      <div class="stat-card accent">
-        <div class="label">Total Cards</div>
-        <div class="value">${totalItems.toLocaleString()}</div>
-      </div>
-      <div class="stat-card">
-        <div class="label">Original Value</div>
-        <div class="value">$${originalValue.toFixed(2)}</div>
-      </div>
-      <div class="stat-card green">
-        <div class="label">Rounded Value</div>
-        <div class="value">$${roundedValue.toFixed(2)}</div>
-      </div>
-      <div class="stat-card yellow">
-        <div class="label">Net Increase</div>
-        <div class="value">+$${increase.toFixed(2)}</div>
-      </div>
+      <div class="stat-card accent"><div class="label">Total Cards</div><div class="value">${totalItems.toLocaleString()}</div></div>
+      <div class="stat-card"><div class="label">Original Value</div><div class="value">$${origValue.toFixed(2)}</div></div>
+      <div class="stat-card green"><div class="label">Rounded Value</div><div class="value">$${roundedValue.toFixed(2)}</div></div>
+      <div class="stat-card yellow"><div class="label">Net Increase</div><div class="value">+$${increase.toFixed(2)}</div></div>
     </div>
 
     <div class="dist-card">
@@ -347,73 +405,117 @@ function renderResults(mode, processed, filename) {
     </div>
 
     <div class="preview-card">
-      <h3>Preview (first 5 rows)</h3>
+      <h3>Preview (first 10 rows)</h3>
       <table>
         <thead><tr>
-          <th>Card Name</th><th>Condition</th><th>Qty</th><th>Before</th><th></th><th>After</th>
+          <th>Card Name</th>
+          <th>Condition</th>
+          <th style="text-align:right">Qty</th>
+          <th style="text-align:right">Purchase</th>
+          ${hasLive ? '<th style="text-align:right">Live</th><th style="text-align:right">Basis</th>' : ''}
+          <th style="text-align:right">→ Rounded</th>
         </tr></thead>
         <tbody>
-          ${preview.map(p => {
-            const name = mode === 'mana' ? p.name : (p.row['Product Name'] || '—');
-            const cond = mode === 'mana' ? p.condition : (p.row['Condition'] || '');
-            return `<tr>
-              <td>${name}</td>
-              <td>${cond}</td>
-              <td>${p.qty}</td>
-              <td class="price-before">$${p.raw.toFixed(2)}</td>
-              <td class="arrow">→</td>
-              <td class="price-after">$${p.rounded.toFixed(2)}</td>
-            </tr>`;
-          }).join('')}
+          ${preview.map(p => `<tr>
+            <td>${p.name}</td>
+            <td>${p.condition}</td>
+            <td class="price-col">${p.qty}</td>
+            <td class="price-col price-dim">${fmt(p.purchase)}</td>
+            ${hasLive ? `
+              <td class="price-col price-live">${p.live !== null ? fmt(p.live) : '<span class="no-live">—</span>'}</td>
+              <td class="price-col">${fmt(p.basis)} ${basisLabel(p)}</td>
+            ` : ''}
+            <td class="price-col price-rounded">${fmt(p.rounded)}</td>
+          </tr>`).join('')}
         </tbody>
       </table>
     </div>
 
-    <button class="download-btn" onclick="downloadCSV('${mode}', '${filename.replace(/'/g,"\\'")}')">
-      ⬇ Download Rounded CSV
-    </button>
-    <button class="reset-btn" onclick="resetMode('${mode}')">Upload a different file</button>
+    <button class="download-btn" onclick="downloadCSV()">⬇ Download Rounded CSV</button>
+    <button class="reset-btn" onclick="resetTool()">Upload a different file</button>
   `;
 }
 
-// ── Download ───────────────────────────────────────────────────────────────
-function downloadCSV(mode, filename) {
-  const data = processedData[mode];
-  if (!data) return;
+// ── Basis toggle ───────────────────────────────────────────────────────────
+function setBasis(mode) {
+  basisMode = mode;
+  renderResults();
+}
 
-  let rows;
-  if (mode === 'tcg') {
-    rows = data.processed.map(({ row, rounded }) => {
-      const out = { ...row };
-      out['TCG Marketplace Price'] = rounded.toFixed(2);
-      return out;
-    });
-  } else {
-    rows = data.processed.map(p => p.row);
+// ── Scryfall fetch ─────────────────────────────────────────────────────────
+async function fetchLivePrices() {
+  if (isFetching || !currentRows) return;
+
+  // Deduplicate Scryfall IDs
+  const uniqueIds = [...new Set(currentRows.map(r => r['Scryfall ID']).filter(Boolean))];
+  if (!uniqueIds.length) { showError('No Scryfall IDs found in CSV.'); return; }
+
+  isFetching = true;
+  renderResults(); // re-render to show progress bar + disable button
+
+  let done = 0;
+  const total = uniqueIds.length;
+
+  function updateProgress() {
+    const label = document.getElementById('progress-label');
+    const bar   = document.getElementById('progress-bar');
+    if (label) label.textContent = `Fetching live prices… ${done} / ${total}`;
+    if (bar)   bar.style.width   = `${(done / total * 100).toFixed(1)}%`;
+  }
+  updateProgress();
+
+  for (const id of uniqueIds) {
+    try {
+      const res  = await fetch(`https://api.scryfall.com/cards/${id}`);
+      const data = await res.json();
+      if (data.prices) {
+        livePrices[id] = {
+          usd:      data.prices.usd      ? parseFloat(data.prices.usd)      : null,
+          usd_foil: data.prices.usd_foil ? parseFloat(data.prices.usd_foil) : null,
+        };
+      }
+    } catch (_) { /* silently skip, live stays null */ }
+    done++;
+    updateProgress();
+    await sleep(80); // respect Scryfall rate limit
   }
 
-  const csv = Papa.unparse(rows);
-  const suffix = mode === 'tcg' ? '_rounded' : '_converted_rounded';
-  const outName = filename.replace(/\.csv$/i, '') + suffix + '.csv';
-  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
+  isFetching = false;
+  fetchDone  = true;
+  basisMode  = 'higher'; // default to higher once live prices are available
+  renderResults();
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── Download ───────────────────────────────────────────────────────────────
+function downloadCSV() {
+  const d = window._processedForDownload;
+  if (!d) return;
+  const rows    = d.processed.map(p => p.tcgRow);
+  const csv     = Papa.unparse(rows);
+  const outName = d.filename.replace(/\.csv$/i, '') + '_rounded.csv';
+  const blob    = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url     = URL.createObjectURL(blob);
+  const a       = document.createElement('a');
   a.href = url; a.download = outName; a.click();
   URL.revokeObjectURL(url);
 }
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-function showError(mode, msg) {
-  const el = document.getElementById('error-' + mode);
-  el.textContent = '⚠ ' + msg;
-  el.classList.remove('hidden');
+// ── Error / reset ──────────────────────────────────────────────────────────
+function showError(msg) {
+  const el = document.getElementById('error-box');
+  if (msg) { el.textContent = '⚠ ' + msg; el.classList.remove('hidden'); }
+  else el.classList.add('hidden');
 }
 
-function resetMode(mode) {
-  processedData[mode] = null;
-  document.getElementById('results-' + mode).classList.add('hidden');
-  document.getElementById('error-' + mode).classList.add('hidden');
-  document.getElementById('file-' + mode).value = '';
+function resetTool() {
+  currentRows = null; currentFile = null;
+  livePrices = {}; fetchDone = false; isFetching = false; basisMode = 'higher';
+  document.getElementById('results').innerHTML = '';
+  document.getElementById('file-input').value = '';
+  window._processedForDownload = null;
+  showError('');
 }
 </script>
 </body>
