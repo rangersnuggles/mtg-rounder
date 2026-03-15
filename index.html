@@ -525,38 +525,47 @@ async function fetchLivePrices() {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // ── TCGPlayer SKU lookup ───────────────────────────────────────────────────
+let _skuIndex = null; // in-memory cache across fetches
+
 async function fetchSkuIds() {
   const label = document.getElementById('progress-label');
   const bar   = document.getElementById('progress-bar');
-  if (label) label.textContent = 'Looking up TCGPlayer SKU IDs… (first run may take ~30s)';
+  if (label) label.textContent = _skuIndex ? 'Matching TCGPlayer IDs…' : 'Loading TCGPlayer SKU index (~4 MB, cached after first load)…';
   if (bar)   bar.style.width   = '99%';
 
-  try {
-    // Build unique card list: scryfallId + productId + foil
-    const seen  = new Set();
-    const cards = [];
-    for (const row of currentRows) {
-      const scryfallId  = row['Scryfall ID'] || '';
-      const foil        = row['Foil'] === 'foil';
-      const productId   = livePrices[scryfallId]?.tcgplayer_id || null;
-      const key         = `${scryfallId}:${foil ? 'foil' : 'normal'}`;
-      if (!scryfallId || !productId || seen.has(key)) continue;
-      seen.add(key);
-      cards.push({ scryfallId, productId, foil });
-    }
-    if (!cards.length) return;
+  // ManaBox condition → MTGJSON condition string
+  const condMap = {
+    near_mint:         'NEAR MINT',
+    lightly_played:    'LIGHTLY PLAYED',
+    moderately_played: 'MODERATELY PLAYED',
+    heavily_played:    'HEAVILY PLAYED',
+    damaged:           'DAMAGED',
+  };
 
-    const res = await fetch('/api/skus', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ cards }),
-    });
-    if (res.ok) {
-      const data    = await res.json();
-      tcgplayerSkus = data.skus || {};
+  try {
+    if (!_skuIndex) {
+      const res = await fetch('/skus-index.json');
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      _skuIndex = await res.json();
     }
-  } catch (_) {
-    // Silently fail — TCGplayer Id will remain blank
+
+    tcgplayerSkus = {};
+    for (const row of currentRows) {
+      const scryfallId = row['Scryfall ID'] || '';
+      const foil       = row['Foil'] === 'foil';
+      const productId  = livePrices[scryfallId]?.tcgplayer_id;
+      if (!scryfallId || !productId) continue;
+
+      const printing  = foil ? 'FOIL' : 'NON FOIL';
+      const condition = condMap[row['Condition']] || 'NEAR MINT';
+      const skuId     = _skuIndex[`${productId}:${printing}:${condition}`];
+      if (skuId) tcgplayerSkus[`${scryfallId}:${foil ? 'foil' : 'normal'}`] = skuId;
+    }
+
+    const found = Object.keys(tcgplayerSkus).length;
+    if (label) label.textContent = `TCGPlayer IDs matched: ${found} of ${currentRows.length} rows`;
+  } catch (err) {
+    if (label) label.textContent = `⚠ TCGPlayer ID lookup failed (${err.message}) — IDs will be blank`;
   }
 }
 
