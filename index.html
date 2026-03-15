@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>TCG Price Rounder</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0f172a;
+      --surface:  #1e293b;
+      --border:   #334155;
+      --muted:    #64748b;
+      --text:     #e2e8f0;
+      --subtle:   #94a3b8;
+      --accent:   #6366f1;
+      --accent2:  #8b5cf6;
+      --green:    #22c55e;
+      --yellow:   #eab308;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    .container { max-width: 860px; margin: 0 auto; }
+
+    /* Header */
+    .header { text-align: center; margin-bottom: 2rem; }
+    .header h1 { font-size: 1.75rem; font-weight: 700; background: linear-gradient(135deg, var(--accent), var(--accent2)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .header p { color: var(--subtle); margin-top: .4rem; font-size: .9rem; }
+
+    /* Tabs */
+    .tabs { display: flex; gap: .5rem; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: .35rem; margin-bottom: 1.75rem; }
+    .tab {
+      flex: 1; padding: .6rem 1rem; border: none; border-radius: 7px; cursor: pointer;
+      font-size: .875rem; font-weight: 500; transition: all .2s;
+      background: transparent; color: var(--subtle);
+    }
+    .tab.active { background: var(--accent); color: #fff; }
+    .tab:not(.active):hover { color: var(--text); background: var(--border); }
+
+    /* Upload zone */
+    .upload-zone {
+      border: 2px dashed var(--border); border-radius: 12px; padding: 2.5rem 1.5rem;
+      text-align: center; cursor: pointer; transition: all .2s;
+      background: var(--surface);
+    }
+    .upload-zone:hover, .upload-zone.drag-over { border-color: var(--accent); background: #1e293b; }
+    .upload-zone svg { width: 40px; height: 40px; color: var(--muted); margin-bottom: .75rem; }
+    .upload-zone p { color: var(--subtle); font-size: .9rem; }
+    .upload-zone strong { color: var(--text); }
+    .upload-btn {
+      display: inline-block; margin-top: 1rem; padding: .5rem 1.25rem;
+      background: var(--accent); color: #fff; border: none; border-radius: 7px;
+      font-size: .875rem; font-weight: 500; cursor: pointer; transition: background .2s;
+    }
+    .upload-btn:hover { background: var(--accent2); }
+    input[type="file"] { display: none; }
+
+    /* Cards */
+    .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem; margin-top: 1.5rem; }
+    @media (max-width: 600px) { .stats-grid { grid-template-columns: repeat(2, 1fr); } }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1rem; }
+    .stat-card .label { font-size: .75rem; color: var(--subtle); text-transform: uppercase; letter-spacing: .05em; }
+    .stat-card .value { font-size: 1.4rem; font-weight: 700; margin-top: .25rem; }
+    .stat-card.green .value { color: var(--green); }
+    .stat-card.yellow .value { color: var(--yellow); }
+    .stat-card.accent .value { color: var(--accent); }
+
+    /* Distribution */
+    .dist-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-top: .75rem; }
+    .dist-card h3 { font-size: .8rem; color: var(--subtle); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 1rem; }
+    .dist-row { display: flex; align-items: center; gap: .75rem; margin-bottom: .6rem; font-size: .82rem; }
+    .dist-label { width: 110px; color: var(--subtle); flex-shrink: 0; text-align: right; }
+    .dist-bar-wrap { flex: 1; background: var(--border); border-radius: 4px; height: 8px; overflow: hidden; }
+    .dist-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 4px; transition: width .4s; }
+    .dist-count { width: 40px; text-align: right; color: var(--text); font-weight: 500; }
+
+    /* Preview table */
+    .preview-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 1.25rem; margin-top: .75rem; overflow-x: auto; }
+    .preview-card h3 { font-size: .8rem; color: var(--subtle); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 1rem; }
+    table { width: 100%; border-collapse: collapse; font-size: .83rem; }
+    th { color: var(--subtle); font-weight: 500; text-align: left; padding: .4rem .75rem; border-bottom: 1px solid var(--border); }
+    td { padding: .5rem .75rem; border-bottom: 1px solid #1e293b; }
+    tr:last-child td { border-bottom: none; }
+    .price-before { color: var(--muted); text-decoration: line-through; }
+    .price-after { color: var(--green); font-weight: 600; }
+    .arrow { color: var(--subtle); }
+
+    /* Download */
+    .download-btn {
+      display: block; width: 100%; margin-top: 1rem; padding: .85rem;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff; border: none; border-radius: 10px;
+      font-size: 1rem; font-weight: 600; cursor: pointer; transition: opacity .2s;
+      text-align: center;
+    }
+    .download-btn:hover { opacity: .9; }
+
+    /* Reset */
+    .reset-btn {
+      display: block; width: 100%; margin-top: .6rem; padding: .6rem;
+      background: transparent; color: var(--subtle); border: 1px solid var(--border);
+      border-radius: 8px; font-size: .85rem; cursor: pointer; transition: all .2s;
+    }
+    .reset-btn:hover { color: var(--text); border-color: var(--muted); }
+
+    .hidden { display: none !important; }
+
+    /* Error */
+    .error-box { background: #3f1215; border: 1px solid #7f1d1d; border-radius: 8px; padding: 1rem 1.25rem; color: #fca5a5; font-size: .875rem; margin-top: 1rem; }
+  </style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <h1>TCG Price Rounder</h1>
+    <p>Round marketplace prices up to the nearest $0.25 &mdash; minimum $0.50</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" id="tab-tcg" onclick="switchTab('tcg')">TCGPlayer Rounder</button>
+    <button class="tab" id="tab-mana" onclick="switchTab('mana')">ManaBox Converter</button>
+  </div>
+
+  <!-- TCGPlayer Tab -->
+  <div id="panel-tcg">
+    <div class="upload-zone" id="zone-tcg"
+      ondragover="handleDragOver(event,'zone-tcg')"
+      ondragleave="handleDragLeave('zone-tcg')"
+      ondrop="handleDrop(event,'tcg')"
+      onclick="document.getElementById('file-tcg').click()">
+      <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+      <p><strong>Drop your TCGPlayer CSV here</strong></p>
+      <p>or click to browse</p>
+      <button class="upload-btn" onclick="event.stopPropagation(); document.getElementById('file-tcg').click()">Choose File</button>
+    </div>
+    <input type="file" id="file-tcg" accept=".csv" onchange="handleFile(event,'tcg')" />
+    <div id="error-tcg" class="error-box hidden"></div>
+    <div id="results-tcg" class="hidden"></div>
+  </div>
+
+  <!-- ManaBox Tab -->
+  <div id="panel-mana" class="hidden">
+    <div class="upload-zone" id="zone-mana"
+      ondragover="handleDragOver(event,'zone-mana')"
+      ondragleave="handleDragLeave('zone-mana')"
+      ondrop="handleDrop(event,'mana')"
+      onclick="document.getElementById('file-mana').click()">
+      <svg fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5"/></svg>
+      <p><strong>Drop your ManaBox CSV here</strong></p>
+      <p>Converts to TCGPlayer format &amp; rounds prices in one step</p>
+      <button class="upload-btn" onclick="event.stopPropagation(); document.getElementById('file-mana').click()">Choose File</button>
+    </div>
+    <input type="file" id="file-mana" accept=".csv" onchange="handleFile(event,'mana')" />
+    <div id="error-mana" class="error-box hidden"></div>
+    <div id="results-mana" class="hidden"></div>
+  </div>
+</div>
+
+<script>
+// ── State ──────────────────────────────────────────────────────────────────
+let processedData = { tcg: null, mana: null };
+
+// ── Tab switching ──────────────────────────────────────────────────────────
+function switchTab(tab) {
+  ['tcg','mana'].forEach(t => {
+    document.getElementById('panel-' + t).classList.toggle('hidden', t !== tab);
+    document.getElementById('tab-' + t).classList.toggle('active', t === tab);
+  });
+}
+
+// ── Drag & drop ────────────────────────────────────────────────────────────
+function handleDragOver(e, zoneId) {
+  e.preventDefault();
+  document.getElementById(zoneId).classList.add('drag-over');
+}
+function handleDragLeave(zoneId) {
+  document.getElementById(zoneId).classList.remove('drag-over');
+}
+function handleDrop(e, mode) {
+  e.preventDefault();
+  document.getElementById('zone-' + mode).classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) processCSV(file, mode);
+}
+function handleFile(e, mode) {
+  const file = e.target.files[0];
+  if (file) processCSV(file, mode);
+}
+
+// ── Core logic ─────────────────────────────────────────────────────────────
+function roundUpToQuarter(price) {
+  if (price < 0.50) return 0.50;
+  return Math.ceil(price * 4) / 4;
+}
+
+function conditionFromManabox(condition, foil) {
+  const map = {
+    near_mint: 'Near Mint',
+    lightly_played: 'Lightly Played',
+    moderately_played: 'Moderately Played',
+    heavily_played: 'Heavily Played',
+    damaged: 'Damaged',
+  };
+  const base = map[condition] || condition;
+  return foil === 'foil' ? base + ' Foil' : base;
+}
+
+function rarityFromManabox(r) {
+  return { common: 'C', uncommon: 'U', rare: 'R', mythic: 'M' }[r] || r;
+}
+
+function processCSV(file, mode) {
+  const errEl = document.getElementById('error-' + mode);
+  errEl.classList.add('hidden');
+
+  Papa.parse(file, {
+    header: true,
+    skipEmptyLines: true,
+    complete(result) {
+      try {
+        if (mode === 'tcg') {
+          processTCG(result.data, file.name);
+        } else {
+          processManabox(result.data, file.name);
+        }
+      } catch (err) {
+        showError(mode, err.message);
+      }
+    },
+    error(err) { showError(mode, err.message); }
+  });
+}
+
+function processTCG(rows, filename) {
+  if (!rows.length) throw new Error('CSV appears to be empty.');
+  if (!('TCG Marketplace Price' in rows[0])) throw new Error('Missing required column: "TCG Marketplace Price". Make sure this is a TCGPlayer export.');
+
+  const processed = rows.map(row => {
+    const raw = parseFloat(row['TCG Marketplace Price']);
+    const rounded = isNaN(raw) ? 0 : roundUpToQuarter(raw);
+    const qty = parseInt(row['Add to Quantity']) || 1;
+    return { row, raw: isNaN(raw) ? 0 : raw, rounded, qty };
+  });
+
+  processedData.tcg = { processed, filename };
+  renderResults('tcg', processed, filename);
+}
+
+function processManabox(rows, filename) {
+  if (!rows.length) throw new Error('CSV appears to be empty.');
+  if (!('Purchase price' in rows[0])) throw new Error('Missing required column: "Purchase price". Make sure this is a ManaBox export.');
+
+  const processed = rows.map(row => {
+    const raw = parseFloat(row['Purchase price']);
+    const rounded = isNaN(raw) ? 0 : roundUpToQuarter(raw);
+    const qty = parseInt(row['Quantity']) || 1;
+
+    const tcgRow = {
+      'TCGplayer Id': '',
+      'Product Line': 'Magic',
+      'Set Name': row['Set name'] || '',
+      'Product Name': row['Name'] || '',
+      'Title': '',
+      'Number': row['Collector number'] || '',
+      'Rarity': rarityFromManabox(row['Rarity']),
+      'Condition': conditionFromManabox(row['Condition'], row['Foil']),
+      'TCG Market Price': '',
+      'TCG Direct Low': '',
+      'TCG Low Price With Shipping': '',
+      'TCG Low Price': '',
+      'Total Quantity': qty,
+      'Add to Quantity': qty,
+      'TCG Marketplace Price': rounded.toFixed(2),
+      'Photo URL': ''
+    };
+    return { row: tcgRow, raw: isNaN(raw) ? 0 : raw, rounded, qty, name: row['Name'], condition: conditionFromManabox(row['Condition'], row['Foil']) };
+  });
+
+  processedData.mana = { processed, filename };
+  renderResults('mana', processed, filename);
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function renderResults(mode, processed, filename) {
+  const totalItems = processed.reduce((s, p) => s + p.qty, 0);
+  const originalValue = processed.reduce((s, p) => s + p.raw * p.qty, 0);
+  const roundedValue = processed.reduce((s, p) => s + p.rounded * p.qty, 0);
+  const increase = roundedValue - originalValue;
+
+  // Price distribution
+  const buckets = [
+    { label: '$0.50', check: r => r === 0.50, count: 0 },
+    { label: '$0.75 – $0.99', check: r => r >= 0.75 && r <= 0.99, count: 0 },
+    { label: '$1.00 – $4.99', check: r => r >= 1.00 && r <= 4.99, count: 0 },
+    { label: '$5.00 – $9.99', check: r => r >= 5.00 && r <= 9.99, count: 0 },
+    { label: '$10.00 – $19.99', check: r => r >= 10.00 && r <= 19.99, count: 0 },
+    { label: '$20.00+', check: r => r >= 20.00, count: 0 },
+  ];
+  processed.forEach(({ rounded, qty }) => {
+    buckets.forEach(b => { if (b.check(rounded)) b.count += qty; });
+  });
+  const maxCount = Math.max(...buckets.map(b => b.count), 1);
+
+  // Preview rows (first 5)
+  const preview = processed.slice(0, 5);
+
+  const container = document.getElementById('results-' + mode);
+  container.classList.remove('hidden');
+  container.innerHTML = `
+    <div class="stats-grid">
+      <div class="stat-card accent">
+        <div class="label">Total Cards</div>
+        <div class="value">${totalItems.toLocaleString()}</div>
+      </div>
+      <div class="stat-card">
+        <div class="label">Original Value</div>
+        <div class="value">$${originalValue.toFixed(2)}</div>
+      </div>
+      <div class="stat-card green">
+        <div class="label">Rounded Value</div>
+        <div class="value">$${roundedValue.toFixed(2)}</div>
+      </div>
+      <div class="stat-card yellow">
+        <div class="label">Net Increase</div>
+        <div class="value">+$${increase.toFixed(2)}</div>
+      </div>
+    </div>
+
+    <div class="dist-card">
+      <h3>Price Distribution</h3>
+      ${buckets.map(b => `
+        <div class="dist-row">
+          <div class="dist-label">${b.label}</div>
+          <div class="dist-bar-wrap"><div class="dist-bar" style="width:${(b.count/maxCount*100).toFixed(1)}%"></div></div>
+          <div class="dist-count">${b.count}</div>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="preview-card">
+      <h3>Preview (first 5 rows)</h3>
+      <table>
+        <thead><tr>
+          <th>Card Name</th><th>Condition</th><th>Qty</th><th>Before</th><th></th><th>After</th>
+        </tr></thead>
+        <tbody>
+          ${preview.map(p => {
+            const name = mode === 'mana' ? p.name : (p.row['Product Name'] || '—');
+            const cond = mode === 'mana' ? p.condition : (p.row['Condition'] || '');
+            return `<tr>
+              <td>${name}</td>
+              <td>${cond}</td>
+              <td>${p.qty}</td>
+              <td class="price-before">$${p.raw.toFixed(2)}</td>
+              <td class="arrow">→</td>
+              <td class="price-after">$${p.rounded.toFixed(2)}</td>
+            </tr>`;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+
+    <button class="download-btn" onclick="downloadCSV('${mode}', '${filename.replace(/'/g,"\\'")}')">
+      ⬇ Download Rounded CSV
+    </button>
+    <button class="reset-btn" onclick="resetMode('${mode}')">Upload a different file</button>
+  `;
+}
+
+// ── Download ───────────────────────────────────────────────────────────────
+function downloadCSV(mode, filename) {
+  const data = processedData[mode];
+  if (!data) return;
+
+  let rows;
+  if (mode === 'tcg') {
+    rows = data.processed.map(({ row, rounded }) => {
+      const out = { ...row };
+      out['TCG Marketplace Price'] = rounded.toFixed(2);
+      return out;
+    });
+  } else {
+    rows = data.processed.map(p => p.row);
+  }
+
+  const csv = Papa.unparse(rows);
+  const suffix = mode === 'tcg' ? '_rounded' : '_converted_rounded';
+  const outName = filename.replace(/\.csv$/i, '') + suffix + '.csv';
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = outName; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function showError(mode, msg) {
+  const el = document.getElementById('error-' + mode);
+  el.textContent = '⚠ ' + msg;
+  el.classList.remove('hidden');
+}
+
+function resetMode(mode) {
+  processedData[mode] = null;
+  document.getElementById('results-' + mode).classList.add('hidden');
+  document.getElementById('error-' + mode).classList.add('hidden');
+  document.getElementById('file-' + mode).value = '';
+}
+</script>
+</body>
+</html>
