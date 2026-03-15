@@ -50,6 +50,9 @@ async function main() {
 
   console.log(`Indexed ${total.toLocaleString()} SKUs. Writing file…`);
 
+  // Embed build date as a sentinel key (value is a string, all real skuIds are numbers)
+  index['_built'] = new Date().toISOString().slice(0, 10);
+
   const out  = JSON.stringify(index);
   const dest = path.join(__dirname, '..', 'skus-index.json');
   fs.writeFileSync(dest, out, 'utf8');
