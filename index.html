@@ -222,7 +222,8 @@
 // ── State ──────────────────────────────────────────────────────────────────
 let currentRows   = null;   // raw ManaBox rows
 let currentFile   = null;   // filename
-let livePrices    = {};     // { scryfallId: { usd, usd_foil } }
+let livePrices    = {};     // { scryfallId: { usd, usd_foil, tcgplayer_id } }
+let tcgplayerSkus = {};     // { "scryfallId:foil"|"scryfallId:normal": skuId }
 let fetchDone     = false;
 let basisMode     = 'higher'; // 'purchase' | 'live' | 'higher'
 let isFetching    = false;
@@ -283,11 +284,12 @@ function processCSV(file) {
         if (!result.data.length) throw new Error('CSV appears to be empty.');
         if (!('Purchase price' in result.data[0]))
           throw new Error('Missing column "Purchase price" — make sure this is a ManaBox export.');
-        currentRows = result.data;
-        currentFile = file.name;
-        livePrices  = {};
-        fetchDone   = false;
-        basisMode   = 'higher';
+        currentRows   = result.data;
+        currentFile   = file.name;
+        livePrices    = {};
+        tcgplayerSkus = {};
+        fetchDone     = false;
+        basisMode     = 'higher';
         renderResults();
       } catch (err) { showError(err.message); }
     },
@@ -324,7 +326,7 @@ function buildProcessed(floor) {
     const condition = conditionFromManabox(row['Condition'], row['Foil']);
 
     const tcgRow = {
-      'TCGplayer Id': '',
+      'TCGplayer Id': tcgplayerSkus[`${scryfallId}:${foil ? 'foil' : 'normal'}`] || '',
       'Product Line': 'Magic',
       'Set Name': row['Set name'] || '',
       'Product Name': row['Name'] || '',
@@ -501,14 +503,18 @@ async function fetchLivePrices() {
       const res  = await fetch(`https://api.scryfall.com/cards/${id}`);
       const data = await res.json();
       livePrices[id] = {
-        usd:      data.prices?.usd      ? parseFloat(data.prices.usd)      : null,
-        usd_foil: data.prices?.usd_foil ? parseFloat(data.prices.usd_foil) : null,
+        usd:          data.prices?.usd      ? parseFloat(data.prices.usd)      : null,
+        usd_foil:     data.prices?.usd_foil ? parseFloat(data.prices.usd_foil) : null,
+        tcgplayer_id: data.tcgplayer_id || null,
       };
     } catch (_) { /* silently skip, live stays null */ }
     done++;
     updateProgress();
     await sleep(80); // respect Scryfall rate limit
   }
+
+  // Phase 2: look up TCGPlayer SKU IDs
+  await fetchSkuIds();
 
   isFetching = false;
   fetchDone  = true;
@@ -517,6 +523,42 @@ async function fetchLivePrices() {
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── TCGPlayer SKU lookup ───────────────────────────────────────────────────
+async function fetchSkuIds() {
+  const label = document.getElementById('progress-label');
+  const bar   = document.getElementById('progress-bar');
+  if (label) label.textContent = 'Looking up TCGPlayer SKU IDs… (first run may take ~30s)';
+  if (bar)   bar.style.width   = '99%';
+
+  try {
+    // Build unique card list: scryfallId + productId + foil
+    const seen  = new Set();
+    const cards = [];
+    for (const row of currentRows) {
+      const scryfallId  = row['Scryfall ID'] || '';
+      const foil        = row['Foil'] === 'foil';
+      const productId   = livePrices[scryfallId]?.tcgplayer_id || null;
+      const key         = `${scryfallId}:${foil ? 'foil' : 'normal'}`;
+      if (!scryfallId || !productId || seen.has(key)) continue;
+      seen.add(key);
+      cards.push({ scryfallId, productId, foil });
+    }
+    if (!cards.length) return;
+
+    const res = await fetch('/api/skus', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ cards }),
+    });
+    if (res.ok) {
+      const data    = await res.json();
+      tcgplayerSkus = data.skus || {};
+    }
+  } catch (_) {
+    // Silently fail — TCGplayer Id will remain blank
+  }
+}
 
 // ── Full table ─────────────────────────────────────────────────────────────
 function toggleFullTable() {
@@ -627,7 +669,7 @@ function showError(msg) {
 
 function resetTool() {
   currentRows = null; currentFile = null;
-  livePrices = {}; fetchDone = false; isFetching = false; basisMode = 'higher';
+  livePrices = {}; tcgplayerSkus = {}; fetchDone = false; isFetching = false; basisMode = 'higher';
   fullTableVisible = false; sortCol = 'name'; sortDir = 'asc';
   document.getElementById('results').innerHTML = '';
   document.getElementById('file-input').value = '';
