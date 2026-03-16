@@ -1,4 +1,4 @@
-Scan in card with cardslinger and ManaBox app, and airdrop CSV export to my computer. 
+I like to scan magic cards with a Cardslinger and the ManaBox iOS app, and airdrop the CSV export to my computer to prep for sell on TCGPlayer's Marketplace. 
 
 My Previous workflow:
 1) Upload Manabox CSV to https://csv.mtgsold.com and download a TCGPlayer compatible CSV
