@@ -29,7 +29,8 @@ import requests
 SCRYFALL_BULK_META_URL = "https://api.scryfall.com/bulk-data/default-cards"
 MTGJSON_SKUS_URL       = "https://mtgjson.com/api/v5/TcgplayerSkus.json.gz"
 D1_DATABASE_NAME       = "mtg-rounder-skus"
-BATCH_SIZE             = 10_000   # rows per SQL file (D1 import limit ~10k)
+STMT_SIZE              = 100      # rows per INSERT statement (avoid SQLITE_TOOBIG)
+STMTS_PER_FILE         = 500      # INSERT statements per file → 50k rows/file
 
 
 def _download_stream(url, label):
@@ -104,18 +105,24 @@ def build_sku_map(tcg_to_scryfall, mtgjson_data):
 
 
 def write_sql_batches(sku_map, tmp_dir):
-    """Write SQL files in BATCH_SIZE-row chunks. Returns list of file paths."""
-    items  = list(sku_map.items())
-    files  = []
-    today  = date.today().isoformat()
+    """Write SQL files, each containing many small INSERT statements.
 
-    for batch_num, start in enumerate(range(0, len(items), BATCH_SIZE)):
-        batch = items[start : start + BATCH_SIZE]
-        fpath = Path(tmp_dir) / f"batch_{batch_num:04d}.sql"
+    D1 rejects INSERT statements that are too large (SQLITE_TOOBIG).
+    We cap each INSERT at STMT_SIZE rows (~8 KB), and pack STMTS_PER_FILE
+    INSERT statements per file (~50k rows / file).
+    """
+    items      = list(sku_map.items())
+    today      = date.today().isoformat()
+    rows_per_file = STMT_SIZE * STMTS_PER_FILE
+    files      = []
+
+    for file_num, file_start in enumerate(range(0, len(items), rows_per_file)):
+        file_rows = items[file_start : file_start + rows_per_file]
+        fpath     = Path(tmp_dir) / f"batch_{file_num:04d}.sql"
+        is_last   = (file_start + rows_per_file) >= len(items)
 
         with open(fpath, "w") as f:
-            if batch_num == 0:
-                # Schema setup only in first file
+            if file_num == 0:
                 f.write(
                     "CREATE TABLE IF NOT EXISTS skus "
                     "(key TEXT PRIMARY KEY, sku_id INTEGER NOT NULL);\n"
@@ -124,15 +131,17 @@ def write_sql_batches(sku_map, tmp_dir):
                     "DELETE FROM skus;\n"
                 )
 
-            rows = []
-            for key, sku_id in batch:
-                escaped = key.replace("'", "''")
-                rows.append(f"  ('{escaped}', {sku_id})")
-            f.write("INSERT OR REPLACE INTO skus (key, sku_id) VALUES\n")
-            f.write(",\n".join(rows) + ";\n")
+            # Many small INSERT statements per file
+            for stmt_start in range(0, len(file_rows), STMT_SIZE):
+                chunk = file_rows[stmt_start : stmt_start + STMT_SIZE]
+                rows  = []
+                for key, sku_id in chunk:
+                    escaped = key.replace("'", "''")
+                    rows.append(f"  ('{escaped}', {sku_id})")
+                f.write("INSERT OR REPLACE INTO skus (key, sku_id) VALUES\n")
+                f.write(",\n".join(rows) + ";\n")
 
-            # Write build date in last batch
-            if start + BATCH_SIZE >= len(items):
+            if is_last:
                 f.write(
                     f"INSERT OR REPLACE INTO meta (key, value) "
                     f"VALUES ('built', '{today}');\n"
