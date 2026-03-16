@@ -563,9 +563,11 @@ async function fetchSkuIds() {
 
   try {
     const cards = (currentRows || []).map(row => ({
-      scryfallId: row['Scryfall ID'] || '',
-      foil:       row['Foil'] === 'foil',
-      condition:  row['Condition'] || 'near_mint',
+      scryfallId:      row['Scryfall ID'] || '',
+      foil:            row['Foil'] === 'foil',
+      condition:       row['Condition'] || 'near_mint',
+      setCode:         row['Set code'] || '',
+      collectorNumber: row['Collector number'] || '',
     })).filter(c => c.scryfallId);
 
     if (!cards.length) return;

@@ -1,7 +1,9 @@
 // Cloudflare Pages Function — POST /api/skus
-// Input:  { cards: [{ scryfallId, foil, condition }, ...] }
+// Input:  { cards: [{ scryfallId, foil, condition, setCode?, collectorNumber? }, ...] }
 // Output: { skus: { "scryfallId:foil|normal": skuId, ... } }
-// D1 key format: "{scryfallId}:{FOIL|NON FOIL}:{NEAR_MINT|LIGHTLY_PLAYED|...}"
+// D1 key formats:
+//   Primary:  "{scryfallId}:{FOIL|NON FOIL}:{NEAR MINT|...}"
+//   Fallback: "{setCode}:{collectorNumber}:{FOIL|NON FOIL}:{NEAR MINT|...}"
 
 const COND_MAP = {
   near_mint:         'NEAR MINT',
@@ -30,12 +32,20 @@ export async function onRequestPost({ request, env }) {
 
     // Build D1 key → response key mapping
     const keyToCard = {};
-    for (const { scryfallId, foil, condition } of cards) {
+    for (const { scryfallId, foil, condition, setCode, collectorNumber } of cards) {
       if (!scryfallId) continue;
-      const printing = foil ? 'FOIL' : 'NON FOIL';
-      const cond     = COND_MAP[condition] || 'NEAR_MINT';
-      const d1key    = `${scryfallId}:${printing}:${cond}`;
-      keyToCard[d1key] = `${scryfallId}:${foil ? 'foil' : 'normal'}`;
+      const printing    = foil ? 'FOIL' : 'NON FOIL';
+      const cond        = COND_MAP[condition] || 'NEAR MINT';
+      const responseKey = `${scryfallId}:${foil ? 'foil' : 'normal'}`;
+
+      // Primary key: scryfallId-based
+      keyToCard[`${scryfallId}:${printing}:${cond}`] = responseKey;
+
+      // Fallback key: setCode:collectorNumber-based (covers showcase/borderless variants
+      // where Scryfall assigns a different ID than MTGJSON's canonical scryfallId)
+      if (setCode && collectorNumber) {
+        keyToCard[`${setCode.toLowerCase()}:${collectorNumber}:${printing}:${cond}`] = responseKey;
+      }
     }
 
     const keys = Object.keys(keyToCard);

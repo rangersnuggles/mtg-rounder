@@ -31,7 +31,7 @@ import requests
 
 MTGJSON_SKUS_URL        = "https://mtgjson.com/api/v5/TcgplayerSkus.json.gz"
 MTGJSON_IDENTIFIERS_URL = "https://mtgjson.com/api/v5/AllIdentifiers.json.gz"
-D1_DATABASE_NAME        = "mtg-rounder-skus"
+D1_DATABASE_NAME        = "mtg-skus"
 STMT_SIZE               = 100   # rows per INSERT statement (avoid SQLITE_TOOBIG)
 STMTS_PER_FILE          = 500   # INSERT statements per file → 50k rows/file
 
@@ -54,18 +54,22 @@ def _download_gz_json(url, label):
     return json.loads(gzip.decompress(raw) if url.endswith(".gz") else raw)
 
 
-def download_mtgjson_uuid_to_scryfall():
-    """Return dict: mtgjsonUUID -> scryfallId using MTGJSON AllIdentifiers."""
+def download_mtgjson_uuid_to_card():
+    """Return dict: mtgjsonUUID -> {scryfallId, setCode, number} from AllIdentifiers."""
     data = _download_gz_json(MTGJSON_IDENTIFIERS_URL, "MTGJSON AllIdentifiers")["data"]
 
-    uuid_to_scryfall = {}
+    uuid_to_card = {}
     for mtgjson_uuid, card in data.items():
         scryfall_id = card.get("identifiers", {}).get("scryfallId")
         if scryfall_id:
-            uuid_to_scryfall[mtgjson_uuid] = scryfall_id
+            uuid_to_card[mtgjson_uuid] = {
+                "scryfallId": scryfall_id,
+                "setCode":    card.get("setCode", "").lower(),
+                "number":     card.get("number", ""),
+            }
 
-    print(f"  {len(uuid_to_scryfall):,} MTGJSON UUIDs mapped to Scryfall IDs")
-    return uuid_to_scryfall
+    print(f"  {len(uuid_to_card):,} MTGJSON UUIDs mapped")
+    return uuid_to_card
 
 
 def download_mtgjson_skus():
@@ -75,30 +79,47 @@ def download_mtgjson_skus():
     return data
 
 
-def build_sku_map(uuid_to_scryfall, mtgjson_skus):
-    """Return dict: "{scryfallId}:{FOIL|NON FOIL}:{CONDITION}" -> skuId"""
+def build_sku_map(uuid_to_card, mtgjson_skus):
+    """Return dict of D1 keys -> skuId.
+
+    Two key formats per SKU:
+      Primary:  "{scryfallId}:{printing}:{condition}"
+      Fallback: "{setCode}:{number}:{printing}:{condition}"
+
+    The fallback covers showcase/borderless/extended-art cards where Scryfall
+    assigns a different ID for the variant than MTGJSON's canonical scryfallId
+    (e.g. Shark Shredder #320 foil vs #73 base).
+    """
     sku_map = {}
     skipped = 0
 
     for mtgjson_uuid, sku_list in mtgjson_skus.items():
-        scryfall_id = uuid_to_scryfall.get(mtgjson_uuid)
-        if not scryfall_id:
+        card_info = uuid_to_card.get(mtgjson_uuid)
+        if not card_info:
             skipped += len(sku_list)
             continue
+
+        scryfall_id = card_info["scryfallId"]
+        set_code    = card_info["setCode"]   # e.g. "tmt"
+        number      = card_info["number"]    # e.g. "73"
 
         for sku in sku_list:
             lang = sku.get("language", "")
             if lang not in ("ENGLISH", "English"):
                 continue
 
-            printing  = sku.get("printing", "NON FOIL")   # "FOIL" or "NON FOIL"
-            condition = sku.get("condition", "NEAR MINT")  # e.g. "NEAR MINT"
+            printing  = sku.get("printing", "NON FOIL")
+            condition = sku.get("condition", "NEAR MINT")
             sku_id    = sku.get("skuId")
 
-            key = f"{scryfall_id}:{printing}:{condition}"
-            sku_map[key] = sku_id
+            # Primary key: scryfallId-based
+            sku_map[f"{scryfall_id}:{printing}:{condition}"] = sku_id
 
-    print(f"  {len(sku_map):,} SKU rows built  ({skipped:,} SKUs had no Scryfall ID match)")
+            # Fallback key: setCode:collectorNumber-based
+            if set_code and number:
+                sku_map[f"{set_code}:{number}:{printing}:{condition}"] = sku_id
+
+    print(f"  {len(sku_map):,} SKU rows built  ({skipped:,} SKUs had no mapping)")
     return sku_map
 
 
@@ -173,9 +194,9 @@ def main():
     parser.add_argument("--dry-run", action="store_true", help="Skip D1 upload step")
     args = parser.parse_args()
 
-    uuid_to_scryfall = download_mtgjson_uuid_to_scryfall()
-    mtgjson_skus     = download_mtgjson_skus()
-    sku_map          = build_sku_map(uuid_to_scryfall, mtgjson_skus)
+    uuid_to_card = download_mtgjson_uuid_to_card()
+    mtgjson_skus = download_mtgjson_skus()
+    sku_map      = build_sku_map(uuid_to_card, mtgjson_skus)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         sql_files = write_sql_batches(sku_map, tmp_dir)

@@ -3,5 +3,5 @@ compatibility_date = "2024-09-23"
 
 [[d1_databases]]
 binding = "DB"
-database_name = "mtg-rounder-skus"
+database_name = "mtg-skus"
 database_id = "02f736df-8071-432e-bda8-84cc8b32cadd"
