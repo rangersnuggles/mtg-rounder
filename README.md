@@ -6,8 +6,7 @@ My Previous workflow:
 3) Upload that CSV to TCG player; however those prices were set when i did the initial scanning, and due to days/weeks in potential market price change, i need to manaully open up the original source list on manabox and manually visually sort any decent prive movement and manually correct the entries one by one in the TCG player staging area.
 
 Current Workflow:
-Load manabox file into new app, it converts, rounds, AND gets current market price, defaulting to highest cost basis for rounding :)
-
+Load manabox file into the new app (https://mtg-rounder.pages.dev), it converts, rounds, AND gets current market price, defaulting to highest cost basis for rounding :)
 
 
 ## Gratitude
