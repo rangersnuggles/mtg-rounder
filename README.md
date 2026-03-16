@@ -10,7 +10,7 @@ Load manabox file into new app, it converts, rounds, AND gets current market pri
 
 
 
-## License
+## Gratitude
 Thanks to everyone who built all the stuff that inspired / made this possible, especially https://github.com/ipkstef/fictional-winner. 
 
 ## License
