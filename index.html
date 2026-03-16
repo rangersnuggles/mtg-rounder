@@ -347,14 +347,16 @@ function buildProcessed(floor) {
     const qty = parseInt(row['Quantity']) || 1;
     const condition = conditionFromManabox(row['Condition'], row['Foil']);
 
+    const skuId = tcgplayerSkus[`${scryfallId}:${foil ? 'foil' : 'normal'}`] || '';
+    const isLand = priceData?.is_land ?? false;
     const tcgRow = {
-      'TCGplayer Id': tcgplayerSkus[`${scryfallId}:${foil ? 'foil' : 'normal'}`] || '',
+      'TCGplayer Id': skuId,
       'Product Line': 'Magic',
       'Set Name': row['Set name'] || '',
-      'Product Name': row['Name'] || '',
+      'Product Name': skuId ? '' : (row['Name'] || ''),
       'Title': '',
       'Number': row['Collector number'] || '',
-      'Rarity': rarityFromManabox(row['Rarity']),
+      'Rarity': isLand ? 'L' : rarityFromManabox(row['Rarity']),
       'Condition': condition,
       'TCG Market Price': '',
       'TCG Direct Low': '',
@@ -528,6 +530,7 @@ async function fetchLivePrices() {
         usd:          data.prices?.usd      ? parseFloat(data.prices.usd)      : null,
         usd_foil:     data.prices?.usd_foil ? parseFloat(data.prices.usd_foil) : null,
         tcgplayer_id: data.tcgplayer_id || null,
+        is_land:      (data.type_line || '').includes('Land'),
       };
     } catch (_) { /* silently skip, live stays null */ }
     done++;
