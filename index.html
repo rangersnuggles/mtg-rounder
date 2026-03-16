@@ -483,6 +483,15 @@ function renderResults() {
 
     <div id="full-table"></div>
 
+    ${(() => {
+      const noSku = processed.filter(p => !p.tcgRow['TCGplayer Id']);
+      return noSku.length
+        ? `<p style="font-size:.8rem;color:var(--muted);margin:.5rem 0 0">
+             ⚠ ${noSku.length} card${noSku.length > 1 ? 's' : ''} excluded from download (no TCGplayer ID found):
+             ${noSku.map(p => p.name).join(', ')}
+           </p>`
+        : '';
+    })()}
     <button class="download-btn" onclick="downloadCSV()">⬇ Download Rounded CSV</button>
     <button class="reset-btn" onclick="resetTool()">Upload a different file</button>
   `;
@@ -668,7 +677,8 @@ function renderFullTable(processed) {
 function downloadCSV() {
   const d = window._processedForDownload;
   if (!d) return;
-  const rows    = d.processed.map(p => p.tcgRow);
+  // Exclude rows with no TCGplayer Id — TCGPlayer rejects CSVs with multiple null IDs
+  const rows    = d.processed.filter(p => p.tcgRow['TCGplayer Id']).map(p => p.tcgRow);
   const csv     = Papa.unparse(rows);
   const outName = d.filename.replace(/\.csv$/i, '') + '_rounded.csv';
   const blob    = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
