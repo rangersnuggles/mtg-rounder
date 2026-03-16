@@ -1,7 +1,0 @@
-{
-  "buildCommand": null,
-  "outputDirectory": ".",
-  "functions": {
-    "api/skus.js": { "maxDuration": 60 }
-  }
-}
