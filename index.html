@@ -313,6 +313,7 @@ function processCSV(file) {
         fetchDone     = false;
         basisMode     = 'higher';
         renderResults();
+        fetchSkuIds(); // auto-load SKU IDs from D1 (no Scryfall needed)
       } catch (err) { showError(err.message); }
     },
     error(err) { showError(err.message); }
@@ -549,52 +550,34 @@ async function fetchLivePrices() {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ── TCGPlayer SKU lookup ───────────────────────────────────────────────────
-let _skuIndex = null; // in-memory cache across fetches
-
+// ── TCGPlayer SKU lookup (via Cloudflare D1) ──────────────────────────────
 async function fetchSkuIds() {
   const label = document.getElementById('progress-label');
   const bar   = document.getElementById('progress-bar');
-  if (label) label.textContent = _skuIndex ? 'Matching TCGPlayer IDs…' : 'Loading TCGPlayer SKU index (~4 MB, cached after first load)…';
+  if (label) label.textContent = 'Looking up TCGPlayer SKU IDs…';
   if (bar)   bar.style.width   = '99%';
 
-  // ManaBox condition → MTGJSON condition string
-  const condMap = {
-    near_mint:         'NEAR MINT',
-    lightly_played:    'LIGHTLY PLAYED',
-    moderately_played: 'MODERATELY PLAYED',
-    heavily_played:    'HEAVILY PLAYED',
-    damaged:           'DAMAGED',
-  };
-
   try {
-    if (!_skuIndex) {
-      const res = await fetch('/skus-index.json');
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      _skuIndex = await res.json();
-    }
+    const cards = (currentRows || []).map(row => ({
+      scryfallId: row['Scryfall ID'] || '',
+      foil:       row['Foil'] === 'foil',
+      condition:  row['Condition'] || 'near_mint',
+    })).filter(c => c.scryfallId);
 
-    tcgplayerSkus = {};
-    for (const row of currentRows) {
-      const scryfallId = row['Scryfall ID'] || '';
-      const foil       = row['Foil'] === 'foil';
-      const productId  = livePrices[scryfallId]?.tcgplayer_id;
-      if (!scryfallId || !productId) continue;
+    if (!cards.length) return;
 
-      const printing  = foil ? 'FOIL' : 'NON FOIL';
-      const condition = condMap[row['Condition']] || 'NEAR MINT';
-      const skuId     = _skuIndex[`${productId}:${printing}:${condition}`];
-      if (skuId) tcgplayerSkus[`${scryfallId}:${foil ? 'foil' : 'normal'}`] = skuId;
-    }
+    const res = await fetch('/api/skus', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ cards }),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+    const { skus } = await res.json();
+    tcgplayerSkus = skus || {};
 
     const found = Object.keys(tcgplayerSkus).length;
     if (label) label.textContent = `TCGPlayer IDs matched: ${found} of ${currentRows.length} rows`;
-
-    // Show index date in settings row
-    if (_skuIndex['_built']) {
-      const el = document.getElementById('sku-index-date');
-      if (el) el.textContent = `SKU index: ${_skuIndex['_built']}`;
-    }
   } catch (err) {
     if (label) label.textContent = `⚠ TCGPlayer ID lookup failed (${err.message}) — IDs will be blank`;
   }

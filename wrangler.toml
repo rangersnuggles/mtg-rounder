@@ -1,0 +1,8 @@
+name = "mtg-rounder"
+compatibility_date = "2024-09-23"
+pages_build_output_dir = "."
+
+[[d1_databases]]
+binding = "DB"
+database_name = "mtg-rounder-skus"
+database_id = "02f736df-8071-432e-bda8-84cc8b32cadd"
