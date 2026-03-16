@@ -9,5 +9,11 @@ Current Workflow:
 Load manabox file into new app, it converts, rounds, AND gets current market price, defaulting to highest cost basis for rounding :)
 
 
-thanks to everyone who built all the stuff that inspired / made this possible. 
-MIT Liscense, like the stuff that came before it. 
+
+## License
+Thanks to everyone who built all the stuff that inspired / made this possible, especially https://github.com/ipkstef/fictional-winner. 
+
+## License
+MIT
+
+
