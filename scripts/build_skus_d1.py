@@ -55,15 +55,17 @@ def _download_gz_json(url, label):
 
 
 def download_mtgjson_uuid_to_card():
-    """Return dict: mtgjsonUUID -> {scryfallId, setCode, number} from AllIdentifiers."""
+    """Return dict: mtgjsonUUID -> {scryfallId, oracleId, setCode, number} from AllIdentifiers."""
     data = _download_gz_json(MTGJSON_IDENTIFIERS_URL, "MTGJSON AllIdentifiers")["data"]
 
     uuid_to_card = {}
     for mtgjson_uuid, card in data.items():
-        scryfall_id = card.get("identifiers", {}).get("scryfallId")
+        ids         = card.get("identifiers", {})
+        scryfall_id = ids.get("scryfallId")
         if scryfall_id:
             uuid_to_card[mtgjson_uuid] = {
                 "scryfallId": scryfall_id,
+                "oracleId":   ids.get("scryfallOracleId", ""),
                 "setCode":    card.get("setCode", "").lower(),
                 "number":     card.get("number", ""),
             }
@@ -82,16 +84,17 @@ def download_mtgjson_skus():
 def build_sku_map(uuid_to_card, mtgjson_skus):
     """Return dict of D1 keys -> skuId.
 
-    Two key formats per SKU:
-      Primary:  "{scryfallId}:{printing}:{condition}"
-      Fallback: "{setCode}:{number}:{printing}:{condition}"
-
-    The fallback covers showcase/borderless/extended-art cards where Scryfall
-    assigns a different ID for the variant than MTGJSON's canonical scryfallId
-    (e.g. Shark Shredder #320 foil vs #73 base).
+    Three key formats per SKU:
+      Primary:       "{scryfallId}:{printing}:{condition}"
+      Fallback:      "{setCode}:{number}:{printing}:{condition}"
+      Oracle xref:   same two formats for same-oracle-same-set variants not in
+                     TcgplayerSkus (e.g. showcase/borderless alternate-number cards
+                     like Shark Shredder #320 foil whose SKUs live under the #73 UUID)
     """
-    sku_map = {}
-    skipped = 0
+    sku_map  = {}
+    skipped  = 0
+    # oracle_set_skus: (oracleId, setCode) -> {(printing, condition) -> skuId}
+    oracle_set_skus = {}
 
     for mtgjson_uuid, sku_list in mtgjson_skus.items():
         card_info = uuid_to_card.get(mtgjson_uuid)
@@ -100,8 +103,9 @@ def build_sku_map(uuid_to_card, mtgjson_skus):
             continue
 
         scryfall_id = card_info["scryfallId"]
-        set_code    = card_info["setCode"]   # e.g. "tmt"
-        number      = card_info["number"]    # e.g. "73"
+        oracle_id   = card_info["oracleId"]
+        set_code    = card_info["setCode"]
+        number      = card_info["number"]
 
         for sku in sku_list:
             lang = sku.get("language", "")
@@ -119,7 +123,41 @@ def build_sku_map(uuid_to_card, mtgjson_skus):
             if set_code and number:
                 sku_map[f"{set_code}:{number}:{printing}:{condition}"] = sku_id
 
-    print(f"  {len(sku_map):,} SKU rows built  ({skipped:,} SKUs had no mapping)")
+            # Track by (oracleId, setCode) for cross-reference pass below
+            if oracle_id and set_code:
+                oracle_set_skus.setdefault((oracle_id, set_code), {})[
+                    (printing, condition)
+                ] = sku_id
+
+    # Cross-reference pass: for any UUID in AllIdentifiers that shares an oracleId+setCode
+    # with a UUID that HAS TcgplayerSkus data but itself has no SKU entry, add D1 keys
+    # so that both the variant's scryfallId and its collector number resolve correctly.
+    # This covers showcase/borderless/extended-art cards like Shark Shredder #320 foil.
+    xref_added = 0
+    for mtgjson_uuid, card_info in uuid_to_card.items():
+        if mtgjson_uuid in mtgjson_skus:
+            continue  # already handled above
+
+        oracle_id = card_info["oracleId"]
+        set_code  = card_info["setCode"]
+        if not oracle_id or not set_code:
+            continue
+
+        skus_for_oracle = oracle_set_skus.get((oracle_id, set_code))
+        if not skus_for_oracle:
+            continue
+
+        scryfall_id = card_info["scryfallId"]
+        number      = card_info["number"]
+
+        for (printing, condition), sku_id in skus_for_oracle.items():
+            sku_map[f"{scryfall_id}:{printing}:{condition}"] = sku_id
+            if set_code and number:
+                sku_map[f"{set_code}:{number}:{printing}:{condition}"] = sku_id
+            xref_added += 1
+
+    print(f"  {len(sku_map):,} SKU rows built  "
+          f"({skipped:,} SKUs had no mapping, {xref_added:,} added via oracle cross-ref)")
     return sku_map
 
 
