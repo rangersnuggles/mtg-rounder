@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-Build Cloudflare D1 skus table from Scryfall bulk data + MTGJSON TcgplayerSkus.
+Build Cloudflare D1 skus table from MTGJSON TcgplayerSkus + AllIdentifiers.
+
+Uses MTGJSON's own UUID→scryfallId cross-reference (AllIdentifiers) rather
+than Scryfall's tcgplayer_id field, which is missing for many variant cards
+(e.g. high-collector-number showcase/borderless/extended-art printings).
 
 Usage:
   python scripts/build_skus_d1.py [--dry-run]
@@ -17,7 +21,6 @@ Environment variables (for CI):
 import argparse
 import gzip
 import json
-import os
 import subprocess
 import sys
 import tempfile
@@ -26,16 +29,16 @@ from pathlib import Path
 
 import requests
 
-SCRYFALL_BULK_META_URL = "https://api.scryfall.com/bulk-data/default-cards"
-MTGJSON_SKUS_URL       = "https://mtgjson.com/api/v5/TcgplayerSkus.json.gz"
-D1_DATABASE_NAME       = "mtg-rounder-skus"
-STMT_SIZE              = 100      # rows per INSERT statement (avoid SQLITE_TOOBIG)
-STMTS_PER_FILE         = 500      # INSERT statements per file → 50k rows/file
+MTGJSON_SKUS_URL        = "https://mtgjson.com/api/v5/TcgplayerSkus.json.gz"
+MTGJSON_IDENTIFIERS_URL = "https://mtgjson.com/api/v5/AllIdentifiers.json.gz"
+D1_DATABASE_NAME        = "mtg-rounder-skus"
+STMT_SIZE               = 100   # rows per INSERT statement (avoid SQLITE_TOOBIG)
+STMTS_PER_FILE          = 500   # INSERT statements per file → 50k rows/file
 
 
-def _download_stream(url, label):
+def _download_gz_json(url, label):
     print(f"Downloading {label}...")
-    r = requests.get(url, stream=True, timeout=300)
+    r = requests.get(url, stream=True, timeout=600)
     r.raise_for_status()
     chunks = []
     total      = int(r.headers.get("content-length", 0))
@@ -47,74 +50,64 @@ def _download_stream(url, label):
             pct = downloaded * 100 // total
             print(f"\r  {pct:3d}%  {downloaded // 1024 // 1024} MB", end="", flush=True)
     print()
-    return b"".join(chunks)
+    raw = b"".join(chunks)
+    return json.loads(gzip.decompress(raw) if url.endswith(".gz") else raw)
 
 
-def download_scryfall_ids():
-    """Return dict: tcgplayer_id (int) -> [scryfall_id, ...]"""
-    meta    = requests.get(SCRYFALL_BULK_META_URL, timeout=30).json()
-    url     = meta["download_uri"]
-    data    = json.loads(_download_stream(url, f"Scryfall default-cards ({url.split('/')[-1]})"))
+def download_mtgjson_uuid_to_scryfall():
+    """Return dict: mtgjsonUUID -> scryfallId using MTGJSON AllIdentifiers."""
+    data = _download_gz_json(MTGJSON_IDENTIFIERS_URL, "MTGJSON AllIdentifiers")["data"]
 
-    tcg_to_scryfall = {}
-    for card in data:
-        for field in ("tcgplayer_id", "tcgplayer_etched_id"):
-            tcg_id = card.get(field)
-            if tcg_id:
-                tcg_to_scryfall.setdefault(int(tcg_id), []).append(card["id"])
+    uuid_to_scryfall = {}
+    for mtgjson_uuid, card in data.items():
+        scryfall_id = card.get("identifiers", {}).get("scryfallId")
+        if scryfall_id:
+            uuid_to_scryfall[mtgjson_uuid] = scryfall_id
 
-    print(f"  {len(tcg_to_scryfall):,} unique TCGPlayer product IDs from Scryfall")
-    return tcg_to_scryfall
+    print(f"  {len(uuid_to_scryfall):,} MTGJSON UUIDs mapped to Scryfall IDs")
+    return uuid_to_scryfall
 
 
 def download_mtgjson_skus():
-    """Return MTGJSON TcgplayerSkus data dict (uuid -> [sku, ...])."""
-    raw  = _download_stream(MTGJSON_SKUS_URL, "MTGJSON TcgplayerSkus")
-    data = json.loads(gzip.decompress(raw))["data"]
-    print(f"  {sum(len(v) for v in data.values()):,} total SKU entries from MTGJSON")
+    """Return MTGJSON TcgplayerSkus data dict (mtgjsonUUID -> [sku, ...])."""
+    data = _download_gz_json(MTGJSON_SKUS_URL, "MTGJSON TcgplayerSkus")["data"]
+    print(f"  {sum(len(v) for v in data.values()):,} total SKU entries")
     return data
 
 
-def build_sku_map(tcg_to_scryfall, mtgjson_data):
+def build_sku_map(uuid_to_scryfall, mtgjson_skus):
     """Return dict: "{scryfallId}:{FOIL|NON FOIL}:{CONDITION}" -> skuId"""
-    sku_map  = {}
-    skipped  = 0
+    sku_map = {}
+    skipped = 0
 
-    for sku_list in mtgjson_data.values():
+    for mtgjson_uuid, sku_list in mtgjson_skus.items():
+        scryfall_id = uuid_to_scryfall.get(mtgjson_uuid)
+        if not scryfall_id:
+            skipped += len(sku_list)
+            continue
+
         for sku in sku_list:
             lang = sku.get("language", "")
             if lang not in ("ENGLISH", "English"):
                 continue
 
-            product_id   = sku.get("productId")
-            scryfall_ids = tcg_to_scryfall.get(product_id)
-            if not scryfall_ids:
-                skipped += 1
-                continue
-
             printing  = sku.get("printing", "NON FOIL")   # "FOIL" or "NON FOIL"
-            condition = sku.get("condition", "NEAR MINT")   # e.g. "NEAR MINT" (MTGJSON uses spaces)
+            condition = sku.get("condition", "NEAR MINT")  # e.g. "NEAR MINT"
             sku_id    = sku.get("skuId")
 
-            for scryfall_id in scryfall_ids:
-                key = f"{scryfall_id}:{printing}:{condition}"
-                sku_map[key] = sku_id
+            key = f"{scryfall_id}:{printing}:{condition}"
+            sku_map[key] = sku_id
 
-    print(f"  {len(sku_map):,} SKU rows built  ({skipped:,} MTGJSON entries had no Scryfall match)")
+    print(f"  {len(sku_map):,} SKU rows built  ({skipped:,} SKUs had no Scryfall ID match)")
     return sku_map
 
 
 def write_sql_batches(sku_map, tmp_dir):
-    """Write SQL files, each containing many small INSERT statements.
-
-    D1 rejects INSERT statements that are too large (SQLITE_TOOBIG).
-    We cap each INSERT at STMT_SIZE rows (~8 KB), and pack STMTS_PER_FILE
-    INSERT statements per file (~50k rows / file).
-    """
-    items      = list(sku_map.items())
-    today      = date.today().isoformat()
+    """Write SQL files, each containing many small INSERT statements."""
+    items         = list(sku_map.items())
+    today         = date.today().isoformat()
     rows_per_file = STMT_SIZE * STMTS_PER_FILE
-    files      = []
+    files         = []
 
     for file_num, file_start in enumerate(range(0, len(items), rows_per_file)):
         file_rows = items[file_start : file_start + rows_per_file]
@@ -131,7 +124,6 @@ def write_sql_batches(sku_map, tmp_dir):
                     "DELETE FROM skus;\n"
                 )
 
-            # Many small INSERT statements per file
             for stmt_start in range(0, len(file_rows), STMT_SIZE):
                 chunk = file_rows[stmt_start : stmt_start + STMT_SIZE]
                 rows  = []
@@ -158,7 +150,6 @@ def apply_to_d1(sql_files, dry_run=False):
         print(f"[DRY RUN] Would apply {len(sql_files)} SQL file(s) to D1 '{D1_DATABASE_NAME}'")
         return
 
-    # Detect wrangler
     try:
         subprocess.run(["wrangler", "--version"], capture_output=True, check=True)
         wrangler_cmd = ["wrangler"]
@@ -168,11 +159,7 @@ def apply_to_d1(sql_files, dry_run=False):
     print(f"Applying {len(sql_files)} batch file(s) to D1...")
     for i, sql_file in enumerate(sql_files, 1):
         print(f"  Batch {i}/{len(sql_files)}: {Path(sql_file).name}")
-        cmd = wrangler_cmd + [
-            "d1", "execute", D1_DATABASE_NAME,
-            f"--file={sql_file}",
-            "--remote",
-        ]
+        cmd    = wrangler_cmd + ["d1", "execute", D1_DATABASE_NAME, f"--file={sql_file}", "--remote"]
         result = subprocess.run(cmd)
         if result.returncode != 0:
             print(f"ERROR on batch {i}", file=sys.stderr)
@@ -183,13 +170,12 @@ def apply_to_d1(sql_files, dry_run=False):
 
 def main():
     parser = argparse.ArgumentParser(description="Sync SKUs to Cloudflare D1")
-    parser.add_argument("--dry-run", action="store_true",
-                        help="Build SQL files but skip the D1 upload step")
+    parser.add_argument("--dry-run", action="store_true", help="Skip D1 upload step")
     args = parser.parse_args()
 
-    tcg_to_scryfall = download_scryfall_ids()
-    mtgjson_data    = download_mtgjson_skus()
-    sku_map         = build_sku_map(tcg_to_scryfall, mtgjson_data)
+    uuid_to_scryfall = download_mtgjson_uuid_to_scryfall()
+    mtgjson_skus     = download_mtgjson_skus()
+    sku_map          = build_sku_map(uuid_to_scryfall, mtgjson_skus)
 
     with tempfile.TemporaryDirectory() as tmp_dir:
         sql_files = write_sql_batches(sku_map, tmp_dir)
