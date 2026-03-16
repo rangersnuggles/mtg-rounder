@@ -582,6 +582,7 @@ async function fetchSkuIds() {
 
     const found = Object.keys(tcgplayerSkus).length;
     if (label) label.textContent = `TCGPlayer IDs matched: ${found} of ${currentRows.length} rows`;
+    renderResults(); // refresh download data now that SKUs are populated
   } catch (err) {
     if (label) label.textContent = `⚠ TCGPlayer ID lookup failed (${err.message}) — IDs will be blank`;
   }

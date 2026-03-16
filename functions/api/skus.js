@@ -4,10 +4,10 @@
 // D1 key format: "{scryfallId}:{FOIL|NON FOIL}:{NEAR_MINT|LIGHTLY_PLAYED|...}"
 
 const COND_MAP = {
-  near_mint:         'NEAR_MINT',
-  lightly_played:    'LIGHTLY_PLAYED',
-  moderately_played: 'MODERATELY_PLAYED',
-  heavily_played:    'HEAVILY_PLAYED',
+  near_mint:         'NEAR MINT',
+  lightly_played:    'LIGHTLY PLAYED',
+  moderately_played: 'MODERATELY PLAYED',
+  heavily_played:    'HEAVILY PLAYED',
   damaged:           'DAMAGED',
 };
 

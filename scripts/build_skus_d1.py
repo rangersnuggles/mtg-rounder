@@ -93,7 +93,7 @@ def build_sku_map(tcg_to_scryfall, mtgjson_data):
                 continue
 
             printing  = sku.get("printing", "NON FOIL")   # "FOIL" or "NON FOIL"
-            condition = sku.get("condition", "NEAR_MINT")  # e.g. "NEAR_MINT"
+            condition = sku.get("condition", "NEAR MINT")   # e.g. "NEAR MINT" (MTGJSON uses spaces)
             sku_id    = sku.get("skuId")
 
             for scryfall_id in scryfall_ids:
