@@ -668,7 +668,7 @@ function toggleFullTable() {
 
 function sortFullTable(col) {
   if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-  else { sortCol = col; sortDir = col === 'rarity' ? 'desc' : 'asc'; }
+  else { sortCol = col; sortDir = (col === 'rarity' || col === 'pull') ? 'desc' : 'asc'; }
   const floor = getFloor();
   if (!floor) return;
   renderFullTable(buildProcessed(floor));
@@ -686,6 +686,7 @@ function renderFullTable(processed) {
     else if (sortCol === 'live')     { av = a.live ?? -1;               bv = b.live ?? -1; }
     else if (sortCol === 'rounded')  { av = a.rounded;                  bv = b.rounded; }
     else if (sortCol === 'rarity')   { av = RARITY_WEIGHT[a.rarity] ?? 0; bv = RARITY_WEIGHT[b.rarity] ?? 0; }
+    else if (sortCol === 'pull')     { av = pulledQtys[a.rowIndex] || 0;  bv = pulledQtys[b.rowIndex] || 0; }
     else                             { av = a.name.toLowerCase();       bv = b.name.toLowerCase(); }
     if (av < bv) return sortDir === 'asc' ? -1 : 1;
     if (av > bv) return sortDir === 'asc' ?  1 : -1;
@@ -730,7 +731,7 @@ function renderFullTable(processed) {
           ${th('purchase', 'Purchase')}
           ${hasLive ? th('live', 'Live') : ''}
           ${hasLive ? th('rounded', 'Basis → Rounded') : th('rounded', '→ Rounded')}
-          <th style="text-align:center">Pull</th>
+          ${th('pull', 'Pull', 'center')}
         </tr></thead>
         <tbody>
           ${sorted.map(p => {
