@@ -185,6 +185,50 @@
 
     .hidden { display: none !important; }
 
+    /* Rarity badges */
+    .rarity-badge { font-size: .7rem; font-weight: 700; border-radius: 3px; padding: 1px 5px; }
+    .rarity-M { color: #fff; background: #e97220; }   /* orange — mythic */
+    .rarity-R { color: #1a1a1a; background: #d4af37; } /* gold — rare */
+    .rarity-U { color: #fff; background: #8ba0b5; }   /* silver — uncommon */
+    .rarity-C { color: #fff; background: #4b5563; }   /* gray — common */
+
+    /* Pull feature */
+    .row-pulled td { opacity: 0.4; text-decoration: line-through; }
+    .pull-input {
+      width: 48px; padding: .25rem .35rem;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+      color: var(--text); font-size: .82rem; text-align: center;
+    }
+    .pull-input:focus { outline: none; border-color: var(--accent); }
+    .pull-helpers {
+      display: flex; align-items: center; gap: .5rem; flex-wrap: wrap;
+      margin-top: .75rem; padding: .6rem .9rem;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    }
+    .pull-helper-btn {
+      padding: .35rem .85rem; border: 1px solid var(--border); border-radius: 7px;
+      background: transparent; color: var(--subtle); font-size: .8rem; cursor: pointer; transition: all .2s;
+    }
+    .pull-helper-btn:hover { color: var(--text); border-color: var(--muted); }
+    .pull-helper-input {
+      width: 64px; padding: .3rem .5rem;
+      background: var(--bg); border: 1px solid var(--border); border-radius: 5px;
+      color: var(--text); font-size: .8rem; text-align: center;
+    }
+    .pull-summary {
+      font-size: .82rem; color: var(--subtle); padding: .45rem .85rem;
+      background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+      margin-top: .5rem;
+    }
+    .download-pull-btn {
+      display: block; width: 100%; margin-top: .6rem; padding: .7rem;
+      background: var(--surface); color: var(--accent); border: 1px solid var(--accent);
+      border-radius: 10px; font-size: .95rem; font-weight: 600; cursor: pointer; transition: all .2s;
+      text-align: center;
+    }
+    .download-pull-btn:hover:not(:disabled) { background: var(--accent); color: #fff; }
+    .download-pull-btn:disabled { opacity: .35; cursor: default; }
+
     /* Error */
     .error-box { background: #3f1215; border: 1px solid #7f1d1d; border-radius: 8px; padding: 1rem 1.25rem; color: #fca5a5; font-size: .875rem; margin-top: 1rem; }
 
@@ -247,6 +291,7 @@ let isFetching    = false;
 let fullTableVisible = false;
 let sortCol       = 'name';
 let sortDir       = 'asc';
+let pulledQtys    = {};     // { rowIndex: pulledQuantity }
 
 // ── Floor ──────────────────────────────────────────────────────────────────
 function getFloor() {
@@ -305,6 +350,7 @@ function processCSV(file) {
         currentFile   = file.name;
         livePrices    = {};
         tcgplayerSkus = {};
+        pulledQtys    = {};
         fetchDone     = false;
         basisMode     = 'higher';
         renderResults();
@@ -332,7 +378,7 @@ function fmt(n) { return n === null ? '—' : '$' + n.toFixed(2); }
 
 // ── Build processed rows (pure, no side effects) ───────────────────────────
 function buildProcessed(floor) {
-  return currentRows.map(row => {
+  return currentRows.map((row, i) => {
     const purchase = parseFloat(row['Purchase price']) || 0;
     const scryfallId = row['Scryfall ID'] || '';
     const foil = row['Foil'] === 'foil';
@@ -365,7 +411,10 @@ function buildProcessed(floor) {
     };
 
     return { tcgRow, purchase, live, basis, rounded, qty, condition,
-             name: row['Name'] || '—', scryfallId };
+             name: row['Name'] || '—', scryfallId,
+             rarity: row['Rarity'] || '',
+             setName: row['Set name'] || '',
+             rowIndex: i };
   });
 }
 
@@ -424,6 +473,16 @@ function renderResults() {
         </div>
       ` : '<span style="font-size:.8rem;color:var(--muted)">Fetch live Scryfall prices to compare against purchase prices</span>'}
     </div>
+
+    <div class="pull-helpers">
+      <span style="font-size:.8rem;color:var(--subtle);font-weight:500">Quick Pull:</span>
+      <button class="pull-helper-btn" onclick="pullAllMythics()">All Mythics</button>
+      <span style="font-size:.8rem;color:var(--muted)">All above $</span>
+      <input type="number" id="pull-threshold" class="pull-helper-input" value="10" min="0" step="1" />
+      <button class="pull-helper-btn" onclick="pullAllAbove()">Pull</button>
+      <button class="pull-helper-btn" onclick="clearPulls()" style="margin-left:auto;color:var(--red);border-color:var(--red)">✕ Clear Pulls</button>
+    </div>
+    <div id="pull-summary" class="pull-summary" style="display:none"></div>
 
     ${isFetching ? `
       <div class="progress-wrap" id="progress-wrap">
@@ -492,11 +551,13 @@ function renderResults() {
            </p>`
         : '';
     })()}
-    <button class="download-btn" onclick="downloadCSV()">⬇ Download Rounded CSV</button>
+    <button class="download-btn" onclick="downloadCSV()">⬇ Download Rounded CSV (Sell List)</button>
+    <button class="download-pull-btn" id="pull-list-btn" onclick="downloadPullList()" disabled>⬇ Download Pull List (.txt)</button>
     <button class="reset-btn" onclick="resetTool()">Upload a different file</button>
   `;
 
   if (fullTableVisible) renderFullTable(processed);
+  updatePullSummary();
 }
 
 // ── Basis toggle ───────────────────────────────────────────────────────────
@@ -607,7 +668,7 @@ function toggleFullTable() {
 
 function sortFullTable(col) {
   if (sortCol === col) sortDir = sortDir === 'asc' ? 'desc' : 'asc';
-  else { sortCol = col; sortDir = 'asc'; }
+  else { sortCol = col; sortDir = col === 'rarity' ? 'desc' : 'asc'; }
   const floor = getFloor();
   if (!floor) return;
   renderFullTable(buildProcessed(floor));
@@ -616,14 +677,16 @@ function sortFullTable(col) {
 function renderFullTable(processed) {
   const hasLive = fetchDone;
 
+  const RARITY_WEIGHT = { mythic: 4, rare: 3, uncommon: 2, common: 1 };
   const sorted = [...processed].sort((a, b) => {
     let av, bv;
-    if (sortCol === 'name')     { av = a.name.toLowerCase();  bv = b.name.toLowerCase(); }
-    else if (sortCol === 'qty') { av = a.qty;                 bv = b.qty; }
-    else if (sortCol === 'purchase') { av = a.purchase;       bv = b.purchase; }
-    else if (sortCol === 'live')     { av = a.live ?? -1;     bv = b.live ?? -1; }
-    else if (sortCol === 'rounded')  { av = a.rounded;        bv = b.rounded; }
-    else                             { av = a.name.toLowerCase(); bv = b.name.toLowerCase(); }
+    if (sortCol === 'name')          { av = a.name.toLowerCase();       bv = b.name.toLowerCase(); }
+    else if (sortCol === 'qty')      { av = a.qty;                      bv = b.qty; }
+    else if (sortCol === 'purchase') { av = a.purchase;                 bv = b.purchase; }
+    else if (sortCol === 'live')     { av = a.live ?? -1;               bv = b.live ?? -1; }
+    else if (sortCol === 'rounded')  { av = a.rounded;                  bv = b.rounded; }
+    else if (sortCol === 'rarity')   { av = RARITY_WEIGHT[a.rarity] ?? 0; bv = RARITY_WEIGHT[b.rarity] ?? 0; }
+    else                             { av = a.name.toLowerCase();       bv = b.name.toLowerCase(); }
     if (av < bv) return sortDir === 'asc' ? -1 : 1;
     if (av > bv) return sortDir === 'asc' ?  1 : -1;
     return 0;
@@ -633,6 +696,12 @@ function renderFullTable(processed) {
     const active = sortCol === col;
     const icon = active ? (sortDir === 'asc' ? ' ↑' : ' ↓') : '';
     return `<th class="sortable${active?' sort-active':''}" style="text-align:${align}" onclick="sortFullTable('${col}')">${label}<span class="sort-icon">${icon}</span></th>`;
+  }
+
+  function rarityBadge(r) {
+    const code = { mythic: 'M', rare: 'R', uncommon: 'U', common: 'C' }[r];
+    if (!code) return '';
+    return `<span class="rarity-badge rarity-${code}">${code}</span>`;
   }
 
   function basisLabel(p) {
@@ -655,21 +724,29 @@ function renderFullTable(processed) {
       <table>
         <thead><tr>
           ${th('name', 'Card Name', 'left')}
+          ${th('rarity', 'Rarity', 'center')}
           <th style="text-align:left">Condition</th>
           ${th('qty', 'Qty')}
           ${th('purchase', 'Purchase')}
           ${hasLive ? th('live', 'Live') : ''}
           ${hasLive ? th('rounded', 'Basis → Rounded') : th('rounded', '→ Rounded')}
+          <th style="text-align:center">Pull</th>
         </tr></thead>
         <tbody>
-          ${sorted.map(p => `<tr>
-            <td>${p.name}</td>
-            <td>${p.condition}</td>
-            <td class="price-col">${p.qty}</td>
-            <td class="price-col price-dim">${fmt(p.purchase)}</td>
-            ${hasLive ? `<td class="price-col price-live">${p.live !== null ? fmt(p.live) : '<span class="no-live">—</span>'}</td>` : ''}
-            <td class="price-col price-rounded">${hasLive ? fmt(p.basis) + basisLabel(p) + ' → ' : ''}${fmt(p.rounded)}</td>
-          </tr>`).join('')}
+          ${sorted.map(p => {
+            const pulled = pulledQtys[p.rowIndex] || 0;
+            const fullyPulled = pulled >= p.qty && p.qty > 0;
+            return `<tr data-row-index="${p.rowIndex}"${fullyPulled ? ' class="row-pulled"' : ''}>
+              <td>${p.name}</td>
+              <td style="text-align:center">${rarityBadge(p.rarity)}</td>
+              <td>${p.condition}</td>
+              <td class="price-col">${p.qty}</td>
+              <td class="price-col price-dim">${fmt(p.purchase)}</td>
+              ${hasLive ? `<td class="price-col price-live">${p.live !== null ? fmt(p.live) : '<span class="no-live">—</span>'}</td>` : ''}
+              <td class="price-col price-rounded">${hasLive ? fmt(p.basis) + basisLabel(p) + ' → ' : ''}${fmt(p.rounded)}</td>
+              <td style="text-align:center"><input type="number" class="pull-input" min="0" max="${p.qty}" value="${pulled}" oninput="setPullQty(${p.rowIndex}, this.value, ${p.qty})" /></td>
+            </tr>`;
+          }).join('')}
         </tbody>
       </table>
     </div>
@@ -681,10 +758,108 @@ function downloadCSV() {
   const d = window._processedForDownload;
   if (!d) return;
   // Exclude rows with no TCGplayer Id — TCGPlayer rejects CSVs with multiple null IDs
-  const rows    = d.processed.filter(p => p.tcgRow['TCGplayer Id']).map(p => p.tcgRow);
+  // Also reduce qty for partially-pulled rows and skip fully-pulled rows
+  const rows = d.processed
+    .filter(p => p.tcgRow['TCGplayer Id'])
+    .map(p => {
+      const sellQty = p.qty - (pulledQtys[p.rowIndex] || 0);
+      if (sellQty <= 0) return null;
+      if (sellQty === p.qty) return p.tcgRow;
+      return { ...p.tcgRow, 'Total Quantity': sellQty, 'Add to Quantity': sellQty };
+    })
+    .filter(Boolean);
   const csv     = Papa.unparse(rows);
   const outName = d.filename.replace(/\.csv$/i, '') + '_rounded.csv';
   const blob    = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url     = URL.createObjectURL(blob);
+  const a       = document.createElement('a');
+  a.href = url; a.download = outName; a.click();
+  URL.revokeObjectURL(url);
+}
+
+// ── Pull feature ───────────────────────────────────────────────────────────
+function setPullQty(rowIndex, value, maxQty) {
+  const v = Math.min(Math.max(0, parseInt(value) || 0), maxQty);
+  pulledQtys[rowIndex] = v;
+  const row = document.querySelector(`tr[data-row-index="${rowIndex}"]`);
+  if (row) {
+    if (v >= maxQty && maxQty > 0) row.classList.add('row-pulled');
+    else row.classList.remove('row-pulled');
+  }
+  updatePullSummary();
+}
+
+function pullAllMythics() {
+  const floor = getFloor();
+  if (!floor) return;
+  buildProcessed(floor).forEach(p => {
+    if (p.rarity === 'mythic') pulledQtys[p.rowIndex] = p.qty;
+  });
+  if (fullTableVisible) renderFullTable(buildProcessed(floor));
+  updatePullSummary();
+}
+
+function pullAllAbove() {
+  const threshold = parseFloat(document.getElementById('pull-threshold').value);
+  if (isNaN(threshold)) return;
+  const floor = getFloor();
+  if (!floor) return;
+  buildProcessed(floor).forEach(p => {
+    if (p.rounded > threshold) pulledQtys[p.rowIndex] = p.qty;
+  });
+  if (fullTableVisible) renderFullTable(buildProcessed(floor));
+  updatePullSummary();
+}
+
+function clearPulls() {
+  pulledQtys = {};
+  const floor = getFloor();
+  if (floor && fullTableVisible) renderFullTable(buildProcessed(floor));
+  updatePullSummary();
+}
+
+function updatePullSummary() {
+  const el = document.getElementById('pull-summary');
+  const pullBtn = document.getElementById('pull-list-btn');
+  if (!el) return;
+  const floor = getFloor();
+  if (!floor || !currentRows) return;
+
+  const processed = buildProcessed(floor);
+  let pullCards = 0, pullUnique = 0, sellCards = 0;
+  processed.forEach(p => {
+    const pulled = pulledQtys[p.rowIndex] || 0;
+    if (pulled > 0) { pullCards += pulled; pullUnique++; }
+    sellCards += Math.max(0, p.qty - pulled);
+  });
+
+  if (pullCards === 0) {
+    el.style.display = 'none';
+    if (pullBtn) pullBtn.disabled = true;
+    return;
+  }
+  el.style.display = '';
+  el.textContent = `Pulling ${pullCards} card${pullCards !== 1 ? 's' : ''} (${pullUnique} unique) \u2014 ${sellCards} remaining for sale`;
+  if (pullBtn) pullBtn.disabled = false;
+}
+
+function downloadPullList() {
+  const d = window._processedForDownload;
+  if (!d) return;
+  const pulledCards = d.processed
+    .filter(p => (pulledQtys[p.rowIndex] || 0) > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  const date = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  const lines = [`Pull List \u2014 ${date}`, ''];
+  pulledCards.forEach(p => {
+    const qty = pulledQtys[p.rowIndex];
+    lines.push(`${qty}x ${p.name} (${p.setName}, ${p.condition})`);
+  });
+
+  const text    = lines.join('\n');
+  const outName = d.filename.replace(/\.csv$/i, '') + '_pull_list.txt';
+  const blob    = new Blob([text], { type: 'text/plain;charset=utf-8;' });
   const url     = URL.createObjectURL(blob);
   const a       = document.createElement('a');
   a.href = url; a.download = outName; a.click();
@@ -700,7 +875,7 @@ function showError(msg) {
 
 function resetTool() {
   currentRows = null; currentFile = null;
-  livePrices = {}; tcgplayerSkus = {}; fetchDone = false; isFetching = false; basisMode = 'higher';
+  livePrices = {}; tcgplayerSkus = {}; pulledQtys = {}; fetchDone = false; isFetching = false; basisMode = 'higher';
   fullTableVisible = false; sortCol = 'name'; sortDir = 'asc';
   document.getElementById('results').innerHTML = '';
   document.getElementById('file-input').value = '';
