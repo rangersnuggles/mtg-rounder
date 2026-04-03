@@ -414,6 +414,8 @@ function buildProcessed(floor) {
              name: row['Name'] || '—', scryfallId,
              rarity: row['Rarity'] || '',
              setName: row['Set name'] || '',
+             setCode: row['Set code'] || '',
+             collectorNumber: row['Collector number'] || '',
              rowIndex: i };
   });
 }
@@ -855,7 +857,7 @@ function downloadPullList() {
   const lines = [`Pull List \u2014 ${date}`, ''];
   pulledCards.forEach(p => {
     const qty = pulledQtys[p.rowIndex];
-    lines.push(`${qty}x ${p.name} (${p.setName}, ${p.condition})`);
+    lines.push(`${qty}x ${p.name} (${p.setName}, ${p.setCode}/${p.collectorNumber}, ${p.condition})`);
   });
 
   const text    = lines.join('\n');
