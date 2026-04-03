@@ -701,6 +701,11 @@ function renderFullTable(processed) {
     return `<th class="sortable${active?' sort-active':''}" style="text-align:${align}" onclick="sortFullTable('${col}')">${label}<span class="sort-icon">${icon}</span></th>`;
   }
 
+  function conditionAbbr(c) {
+    return c.replace('Near Mint', 'NM').replace('Lightly Played', 'LP').replace('Moderately Played', 'MP')
+            .replace('Heavily Played', 'HP').replace('Damaged', 'DMG');
+  }
+
   function rarityBadge(r) {
     const code = { mythic: 'M', rare: 'R', uncommon: 'U', common: 'C' }[r];
     if (!code) return '';
@@ -728,6 +733,7 @@ function renderFullTable(processed) {
         <thead><tr>
           ${th('name', 'Card Name', 'left')}
           ${th('rarity', 'Rarity', 'center')}
+          <th style="text-align:center">#</th>
           <th style="text-align:left">Condition</th>
           ${th('qty', 'Qty')}
           ${th('purchase', 'Purchase')}
@@ -742,7 +748,8 @@ function renderFullTable(processed) {
             return `<tr data-row-index="${p.rowIndex}"${fullyPulled ? ' class="row-pulled"' : ''}>
               <td>${p.name}</td>
               <td style="text-align:center">${rarityBadge(p.rarity)}</td>
-              <td>${p.condition}</td>
+              <td style="text-align:center;color:var(--muted);font-size:.8rem">${p.collectorNumber || '—'}</td>
+              <td>${conditionAbbr(p.condition)}</td>
               <td class="price-col">${p.qty}</td>
               <td class="price-col price-dim">${fmt(p.purchase)}</td>
               ${hasLive ? `<td class="price-col price-live">${p.live !== null ? fmt(p.live) : '<span class="no-live">—</span>'}</td>` : ''}
